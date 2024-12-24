@@ -11,6 +11,8 @@
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- SweetAlert2 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css" rel="stylesheet">
     <!-- Custom CSS -->
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
     <style>
@@ -108,6 +110,8 @@
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- SweetAlert2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
     <!-- Custom JS -->
     <script>
         // 사이드바 토글 함수
@@ -131,6 +135,65 @@
         function toggleSidebarCollapse() {
             document.getElementById('sidebar').classList.toggle('collapsed');
             document.getElementById('content').classList.toggle('expanded');
+        }
+
+        // 전역 알림 함수 추가
+        function showAlert(options) {
+            return Swal.fire({
+                confirmButtonText: '확인',
+                cancelButtonText: '취소',
+                ...options
+            });
+        }
+
+        // 로딩 표시 함수
+        function showLoading(message = '처리 중...') {
+            Swal.fire({
+                title: message,
+                allowOutsideClick: false,
+                showConfirmButton: false,
+                willOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+        }
+
+        // 성공 메시지
+        function showSuccess(message) {
+            return showAlert({
+                icon: 'success',
+                title: '성공',
+                text: message
+            });
+        }
+
+        // 에러 메시지
+        function showError(message) {
+            return showAlert({
+                icon: 'error',
+                title: '오류',
+                text: message
+            });
+        }
+
+        // 경고 메시지
+        function showWarning(message) {
+            return showAlert({
+                icon: 'warning',
+                title: '경고',
+                text: message
+            });
+        }
+
+        // 확인 메시지
+        function showConfirm(message, confirmButtonText = '확인') {
+            return showAlert({
+                icon: 'question',
+                title: '확인',
+                text: message,
+                showCancelButton: true,
+                confirmButtonText: confirmButtonText
+            });
         }
     </script>
     {% block scripts %}{% endblock %}

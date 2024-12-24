@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>급여명세서</title>
+    <style>
+        {{ font_css }}
+        body {
+            font-family: 'Pretendard', sans-serif;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            font-size: 24px;
+            margin: 0;
+            padding: 10px 0;
+        }
+        .header p {
+            font-size: 16px;
+            margin: 5px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+        }
+        .amount {
+            text-align: right;
+        }
+        .total {
+            font-weight: bold;
+            background-color: #f9f9f9;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        .section h2 {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>급여명세서</h1>
+        <p>귀속연월: {{ record.pay_year_month[:4] }}년 {{ record.pay_year_month[5:] }}월</p>
+        <p>지급일: {{ record.payment_date.strftime('%Y-%m-%d') }}</p>
+    </div>
+
+    <div class="section">
+        <table>
+            <tr>
+                <th width="20%">사원번호</th>
+                <td width="30%">{{ detail.employee_id }}</td>
+                <th width="20%">성명</th>
+                <td width="30%">{{ detail.employee_name }}</td>
+            </tr>
+            <tr>
+                <th>부서</th>
+                <td>{{ detail.department }}</td>
+                <th>직급</th>
+                <td>{{ detail.position }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>지급 내역</h2>
+        <table>
+            <tr>
+                <th width="30%">항목</th>
+                <th width="70%">금액</th>
+            </tr>
+            <tr>
+                <td>기본급</td>
+                <td class="amount">{{ "{:,}".format(detail.base_salary) }}원</td>
+            </tr>
+            <tr>
+                <td>직책수당</td>
+                <td class="amount">{{ "{:,}".format(detail.position_allowance) }}원</td>
+            </tr>
+            <tr>
+                <td>차량유지비</td>
+                <td class="amount">{{ "{:,}".format(detail.car_allowance) }}원</td>
+            </tr>
+            <tr class="total">
+                <td>지급 총액</td>
+                <td class="amount">{{ "{:,}".format(detail.total_payment) }}원</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>공제 내역</h2>
+        <table>
+            <tr>
+                <th width="30%">항목</th>
+                <th width="70%">금액</th>
+            </tr>
+            <tr>
+                <td>국민연금</td>
+                <td class="amount">{{ "{:,}".format(detail.national_pension) }}원</td>
+            </tr>
+            <tr>
+                <td>건강보험</td>
+                <td class="amount">{{ "{:,}".format(detail.health_insurance) }}원</td>
+            </tr>
+            <tr>
+                <td>장기요양보험</td>
+                <td class="amount">{{ "{:,}".format(detail.long_term_care) }}원</td>
+            </tr>
+            <tr>
+                <td>고용보험</td>
+                <td class="amount">{{ "{:,}".format(detail.employment_insurance) }}원</td>
+            </tr>
+            <tr>
+                <td>소득세</td>
+                <td class="amount">{{ "{:,}".format(detail.income_tax) }}원</td>
+            </tr>
+            <tr>
+                <td>지방소득세</td>
+                <td class="amount">{{ "{:,}".format(detail.local_income_tax) }}원</td>
+            </tr>
+            <tr class="total">
+                <td>공제 총액</td>
+                <td class="amount">{{ "{:,}".format(detail.total_deduction) }}원</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <table>
+            <tr class="total">
+                <th width="30%">실수령액</th>
+                <td width="70%" class="amount">{{ "{:,}".format(detail.total_payment - detail.total_deduction) }}원</td>
+            </tr>
+        </table>
+    </div>
+</body>
+</html> 

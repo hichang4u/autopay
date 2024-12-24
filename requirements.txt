@@ -1,14 +1,25 @@
+# Flask 및 확장
 flask
 flask-sqlalchemy
 flask-migrate
 flask-login
 flask-wtf
+
+# 서버
 gunicorn
+
+# 데이터 처리
 pandas
 openpyxl
 xlsxwriter
+
+# PDF 처리
 PyPDF2
 python-docx
+reportlab==4.0.8
+pdfkit==1.0.0  # requires wkhtmltopdf: https://wkhtmltopdf.org/downloads.html
+
+# 유틸리티
 email-validator
 python-dotenv
 pywin32

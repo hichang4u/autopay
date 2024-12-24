@@ -14,9 +14,9 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from email.utils import formatdate
-import PyPDF2
-import pdfplumber
-import tabula
+import pdfkit
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 payroll = Blueprint('payroll', __name__)
 
@@ -100,7 +100,7 @@ def save_payroll():
         record = PayrollRecord(
             pay_year_month=data['pay_year_month'],
             payment_date=datetime.strptime(data['payment_date'], '%Y-%m-%d').date(),
-            status='임��저장',
+            status='TEMP_SAVE',
             created_by=current_user.username,
             created_ip=request.remote_addr
         )
@@ -108,33 +108,51 @@ def save_payroll():
         db.session.flush()
         
         # PayrollDetail 생성
-        detail = PayrollDetail(
-            record_id=record.id,
-            employee_id='45',
-            employee_name='박희창',
+        for emp_data in data['employees']:
+            # 지급액 계산
+            total_payment = (
+                int(emp_data.get('base_salary', 0)) +
+                int(emp_data.get('position_allowance', 0)) +
+                int(emp_data.get('meal_allowance', 0)) +
+                int(emp_data.get('car_allowance', 0))
+            )
             
-            # 지급 항목
-            base_salary=6300000,
-            position_allowance=400000,
-            meal_allowance=200000,
-            car_allowance=200000,
-            total_payment=7100000,
+            # 공제액 계산
+            total_deduction = (
+                int(emp_data.get('income_tax', 0)) +
+                int(emp_data.get('local_income_tax', 0)) +
+                int(emp_data.get('national_pension', 0)) +
+                int(emp_data.get('health_insurance', 0)) +
+                int(emp_data.get('long_term_care', 0)) +
+                int(emp_data.get('employment_insurance', 0))
+            )
             
-            # 공제 항목
-            income_tax=481490,
-            local_income_tax=48140,
-            national_pension=277650,
-            health_insurance=237510,
-            long_term_care=30750,
-            employment_insurance=60300,
-            total_deduction=1135840,
-            
-            # 실수령액
-            net_amount=5964160
-        )
-        db.session.add(detail)
-        db.session.commit()
+            detail = PayrollDetail(
+                record_id=record.id,
+                employee_id=emp_data['employee_id'],
+                employee_name=emp_data['employee_name'],
+                department=emp_data.get('department', ''),
+                position=emp_data.get('position', ''),
+                
+                # 지급 항목
+                base_salary=int(emp_data.get('base_salary', 0)),
+                position_allowance=int(emp_data.get('position_allowance', 0)),
+                meal_allowance=int(emp_data.get('meal_allowance', 0)),
+                car_allowance=int(emp_data.get('car_allowance', 0)),
+                total_payment=total_payment,
+                
+                # 공제 항목
+                income_tax=int(emp_data.get('income_tax', 0)),
+                local_income_tax=int(emp_data.get('local_income_tax', 0)),
+                national_pension=int(emp_data.get('national_pension', 0)),
+                health_insurance=int(emp_data.get('health_insurance', 0)),
+                long_term_care=int(emp_data.get('long_term_care', 0)),
+                employment_insurance=int(emp_data.get('employment_insurance', 0)),
+                total_deduction=total_deduction
+            )
+            db.session.add(detail)
         
+        db.session.commit()
         logger.info(f"급여 데이터 저장 완료: {data['pay_year_month']}")
         
         return jsonify({
@@ -184,14 +202,14 @@ def send_email():
         data = request.get_json()
         
         # TODO: 이메일 발송 로직 구현
-        # 1. 수신자 보 확인
+        # 1. 수신자 정보 확인
         # 2. 이메일 템플릿 로드
         # 3. PDF 첨부
         # 4. 이메일 발송
         
         return jsonify({
             'success': True,
-            'message': '이메일이 발송되었습니다.'
+            'message': '이메일이 성공적으로 발송되었습니다.'
         })
     except Exception as e:
         return jsonify({
@@ -235,84 +253,76 @@ def parse_excel():
         }), 500
 
 # 급여 데이터 조회 API
-@payroll.route('/payroll/list', methods=['GET'])
+@payroll.route('/payroll/list')
 @login_required
 def get_payroll_list():
+    """급여 목록 조회"""
     try:
-        # 최근 12개월의 급여 기록을 가져옴
-        records = PayrollRecord.query.order_by(
-            PayrollRecord.pay_year_month.desc()
-        ).limit(12).all()
-        
-        result = []
-        for record in records:
-            # 각 기록에 대한 직원 수 계산
-            employee_count = PayrollDetail.query.filter_by(record_id=record.id).count()
-            
-            result.append({
-                'id': record.id,
-                'pay_year_month': record.pay_year_month,
-                'payment_date': record.payment_date.strftime('%Y-%m-%d'),
-                'employee_count': employee_count,
-                'created_at': record.created_at.strftime('%Y-%m-%d %H:%M'),
-                'updated_at': record.updated_at.strftime('%Y-%m-%d %H:%M') if record.updated_at else '',
-                'status': record.status
-            })
-        
-        return jsonify({'success': True, 'data': result})
-    except Exception as e:
-        logger.error(f"급여 데이터 조회 실패: {str(e)}")
+        records = PayrollRecord.query.order_by(desc(PayrollRecord.pay_year_month)).all()
         return jsonify({
-            'success': False,
-            'message': f'데이�� 조회 중 오류가 발생했습니다: {str(e)}'
-        }), 500
-
-# 급여 상세 데이터 조회 API
-@payroll.route('/payroll/detail/<int:record_id>', methods=['GET'])
-@login_required
-def get_payroll_detail(record_id):
-    try:
-        # 급여 기록 조회
-        record = PayrollRecord.query.get_or_404(record_id)
-        
-        # 상세 데이터 조회
-        details = PayrollDetail.query.filter_by(record_id=record_id).all()
-        
-        result = {
-            'record': {
+            'success': True,
+            'data': [{
                 'id': record.id,
                 'pay_year_month': record.pay_year_month,
                 'payment_date': record.payment_date.strftime('%Y-%m-%d'),
                 'status': record.status,
-                'created_at': record.created_at.strftime('%Y-%m-%d %H:%M')
-            },
-            'details': [{
-                'id': detail.id,
-                'employee_id': detail.employee_id,
-                'employee_name': detail.employee_name,
-                'department': detail.department,
-                'position': detail.position,
-                'base_salary': detail.base_salary,
-                'position_allowance': detail.position_allowance,
-                'overtime_pay': detail.overtime_pay,
-                'meal_allowance': detail.meal_allowance,
-                'income_tax': detail.income_tax,
-                'national_pension': detail.national_pension,
-                'health_insurance': detail.health_insurance,
-                'employment_insurance': detail.employment_insurance
-            } for detail in details]
-        }
-        
-        return jsonify({
-            'success': True,
-            'data': result
+                'employee_count': PayrollDetail.query.filter_by(record_id=record.id).count(),
+                'created_at': record.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'created_by': record.created_by,
+                'updated_at': record.updated_at.strftime('%Y-%m-%d %H:%M:%S') if record.updated_at else None,
+                'updated_by': record.updated_by
+            } for record in records]
         })
-        
     except Exception as e:
-        logger.error(f"급여 상세 데이터 조회 실패: {str(e)}")
+        logger.error(f"급여 데이터 조회 실패: {str(e)}")
         return jsonify({
             'success': False,
             'message': f'데이터 조회 중 오류가 발생했습니다: {str(e)}'
+        }), 500
+
+# 급여 상세 데이터 조회 API
+@payroll.route('/payroll/detail/<int:record_id>')
+@login_required
+def get_payroll_detail(record_id):
+    """급여 상세 조회"""
+    try:
+        record = PayrollRecord.query.get_or_404(record_id)
+        details = PayrollDetail.query.filter_by(record_id=record_id).all()
+        
+        detail_list = [{
+            'employee_id': detail.employee_id,
+            'employee_name': detail.employee_name,
+            'department': detail.department,
+            'position': detail.position,
+            'base_salary': detail.base_salary,
+            'position_allowance': detail.position_allowance,
+            'meal_allowance': detail.meal_allowance,
+            'car_allowance': detail.car_allowance,
+            'income_tax': detail.income_tax,
+            'local_income_tax': detail.local_income_tax,
+            'national_pension': detail.national_pension,
+            'health_insurance': detail.health_insurance,
+            'long_term_care': detail.long_term_care,
+            'employment_insurance': detail.employment_insurance,
+            'total_payment': detail.total_payment,
+            'total_deduction': detail.total_deduction
+        } for detail in details]
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'id': record.id,
+                'pay_year_month': record.pay_year_month,
+                'payment_date': record.payment_date.strftime('%Y-%m-%d'),
+                'status': record.status,
+                'details': detail_list
+            }
+        })
+    except Exception as e:
+        logger.error(f"급여 상세 조회 실패: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'상세 정보 조회 중 오류가 발생했습니다: {str(e)}'
         }), 500
 
 # 급여 데이터 수정 API
@@ -324,14 +334,22 @@ def update_payroll(record_id):
         record = PayrollRecord.query.get_or_404(record_id)
         
         # 완료 상태인 경우 수정 불가
-        if record.status == '완료':
+        if record.status == 'PROC_CMPT':
             return jsonify({
                 'success': False,
                 'message': '이미 완료된 급여 데이터는 수정할 수 없습니다.'
             }), 400
         
         # 기본 정보 수정
-        record.payment_date = datetime.strptime(data['payment_date'], '%Y-%m-%d').date()
+        if data.get('payment_date'):
+            try:
+                record.payment_date = datetime.strptime(data['payment_date'], '%Y-%m-%d').date()
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'message': '지급일 형식이 올바르지 않습니다. (YYYY-MM-DD)'
+                }), 400
+                
         record.updated_by = current_user.username
         record.updated_ip = request.remote_addr
         
@@ -345,14 +363,37 @@ def update_payroll(record_id):
             if detail:
                 detail.department = emp_data.get('department', '')
                 detail.position = emp_data.get('position', '')
-                detail.base_salary = emp_data.get('base_salary', 0)
-                detail.position_allowance = emp_data.get('position_allowance', 0)
-                detail.overtime_pay = emp_data.get('overtime_pay', 0)
-                detail.meal_allowance = emp_data.get('meal_allowance', 0)
-                detail.income_tax = emp_data.get('income_tax', 0)
-                detail.national_pension = emp_data.get('national_pension', 0)
-                detail.health_insurance = emp_data.get('health_insurance', 0)
-                detail.employment_insurance = emp_data.get('employment_insurance', 0)
+                detail.base_salary = int(emp_data.get('base_salary', 0))
+                detail.position_allowance = int(emp_data.get('position_allowance', 0))
+                detail.meal_allowance = int(emp_data.get('meal_allowance', 0))
+                detail.car_allowance = int(emp_data.get('car_allowance', 0))
+                detail.income_tax = int(emp_data.get('income_tax', 0))
+                detail.local_income_tax = int(emp_data.get('local_income_tax', 0))
+                detail.national_pension = int(emp_data.get('national_pension', 0))
+                detail.health_insurance = int(emp_data.get('health_insurance', 0))
+                detail.long_term_care = int(emp_data.get('long_term_care', 0))
+                detail.employment_insurance = int(emp_data.get('employment_insurance', 0))
+                
+                # 지급액 계산
+                total_payment = (
+                    detail.base_salary +
+                    detail.position_allowance +
+                    detail.meal_allowance +
+                    detail.car_allowance
+                )
+                
+                # 공제액 계산
+                total_deduction = (
+                    detail.income_tax +
+                    detail.local_income_tax +
+                    detail.national_pension +
+                    detail.health_insurance +
+                    detail.long_term_care +
+                    detail.employment_insurance
+                )
+                
+                detail.total_payment = total_payment
+                detail.total_deduction = total_deduction
         
         db.session.commit()
         
@@ -449,92 +490,143 @@ def send_payroll_email():
     except Exception as e:
         return jsonify({'error': f'이메일 발송 중 오류가 발생했습니다: {str(e)}'}), 500
 
-def extract_payroll_data_from_pdf(pdf_path):
-    """PDF 파일에서 급여 데이터를 추출하는 함수"""
+@payroll.route('/payroll/delete/<int:record_id>', methods=['DELETE'])
+@login_required
+def delete_payroll(record_id):
     try:
-        # pdfplumber를 사용하여 PDF 열기
-        with pdfplumber.open(pdf_path) as pdf:
-            # 첫 페이지 가져오기
-            page = pdf.pages[0]
-            
-            # 전체 텍스트 추출
-            text = page.extract_text()
-            print("추출된 텍스트:", text)  # 디버깅용
-            
-            # 테이블 데이터 추출
-            tables = page.extract_tables()
-            print("추출된 테이블:", tables)  # 디버깅용
-            
-            # 데이터 구조 초기화
-            data = {
-                'employee_info': {
-                    'id': '',
-                    'name': '',
-                    'year_month': ''
-                },
-                'payment_items': {
-                    'base_salary': 0,        # 기본급
-                    'position_allowance': 0,  # 직책수당
-                    'overtime_pay': 0,        # 연장근로수당
-                    'meal_allowance': 0       # 식대
-                },
-                'deduction_items': {
-                    'income_tax': 0,          # 소득세
-                    'national_pension': 0,    # 국민연금
-                    'health_insurance': 0,    # 건강보험
-                    'employment_insurance': 0  # 고용보험
-                }
-            }
-            
-            # 정규식 패턴
-            amount_pattern = r'(\d{1,3}(?:,\d{3})*)'
-            
-            # 텍스트 분석
-            lines = text.split('\n')
-            for line in lines:
-                # 직원 정보 추출
-                if '박희창' in line:
-                    data['employee_info']['name'] = '박희창'
-                if '45' in line:
-                    data['employee_info']['id'] = '45'
-                    
-                # 금액 정보 추출
-                if '기본급' in line:
-                    match = re.search(amount_pattern, line)
-                    if match:
-                        data['payment_items']['base_salary'] = int(match.group(1).replace(',', ''))
-                
-                # 다른 항목들도 유사하게 처리
-                
-            return data
-            
-    except Exception as e:
-        print(f"PDF 분석 오류: {str(e)}")
-        return None
-
-@payroll.route('/payroll/parse-pdf', methods=['POST'])
-def parse_pdf():
-    """PDF 파일을 분석하는 API 엔드포인트"""
-    try:
-        pdf_path = request.json.get('pdf_path')
-        if not pdf_path:
-            return jsonify({'error': 'PDF 파일 경로가 필요합니다.'}), 400
-            
-        data = extract_payroll_data_from_pdf(pdf_path)
-        if data:
-            return jsonify({
-                'success': True, 
-                'data': data,
-                'message': 'PDF 파일 분석이 완료되었습니다.'
-            })
-        else:
+        # 급여 기록 조회
+        payroll = PayrollRecord.query.get_or_404(record_id)
+        
+        # 임시저장 상태인 경우에만 삭제 가능
+        if payroll.status != 'TEMP_SAVE':
             return jsonify({
                 'success': False,
-                'error': 'PDF 파일 분석에 실패했습니다.'
-            }), 500
-            
+                'message': '임시저장 상태의 급여 데이터만 삭제할 수 있습니다.'
+            }), 400
+        
+        # 관련된 상세 기록도 함께 삭제
+        PayrollDetail.query.filter_by(record_id=record_id).delete()
+        
+        # 급여 기록 삭제
+        db.session.delete(payroll)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '급여 데이터가 삭제되었습니다.'
+        })
+        
     except Exception as e:
+        db.session.rollback()
         return jsonify({
             'success': False,
-            'error': f'처리 중 오류 발생: {str(e)}'
+            'message': f'삭제 중 오류가 발생했습니다: {str(e)}'
         }), 500
+
+# 한글 폰트 등록
+pdfmetrics.registerFont(TTFont('Pretendard', 'app/static/fonts/Pretendard-Regular.ttf'))
+pdfmetrics.registerFont(TTFont('Pretendard-Bold', 'app/static/fonts/Pretendard-Bold.ttf'))
+pdfmetrics.registerFont(TTFont('Pretendard-Medium', 'app/static/fonts/Pretendard-Medium.ttf'))
+
+@payroll.route('/generate-pdf/<int:record_id>', methods=['POST'])
+def generate_pdf(record_id):
+    try:
+        # 급여 기록 조회
+        record = PayrollRecord.query.get_or_404(record_id)
+        details = PayrollDetail.query.filter_by(record_id=record_id).all()
+        
+        if not details:
+            return jsonify({'success': False, 'message': '급여 상세 데이터가 없습니다.'})
+            
+        # PDF 저장 디렉토리 생성 (지급일 기준)
+        payment_date = record.payment_date.strftime('%Y%m%d')
+        pdfs_dir = os.path.join(current_app.static_folder, 'pdfs')
+        os.makedirs(pdfs_dir, exist_ok=True)  # pdfs 디렉토리 생성
+
+        pdf_dir = os.path.join(pdfs_dir, payment_date)
+        os.makedirs(pdf_dir, exist_ok=True)  # 지급일 기준 디렉토리 생성
+
+        logger.info(f"PDF 저장 디렉토리 생성: {pdf_dir}")  # 로그 추가
+
+        generated_count = 0
+        
+        # 폰트 파일 경로
+        font_dir = os.path.join(current_app.static_folder, 'fonts')
+        font_files = {
+            'regular': os.path.abspath(os.path.join(font_dir, 'Pretendard-Regular.ttf')),
+            'bold': os.path.abspath(os.path.join(font_dir, 'Pretendard-Bold.ttf'))
+        }
+        
+        # CSS 스타일에 폰트 경로 추가
+        font_css = f"""
+        @font-face {{
+            font-family: 'Pretendard';
+            src: local('Pretendard');
+            font-weight: normal;
+            font-style: normal;
+        }}
+        @font-face {{
+            font-family: 'Pretendard';
+            src: local('Pretendard');
+            font-weight: bold;
+            font-style: normal;
+        }}
+        """
+        
+        # 각 직원별로 PDF 생성
+        for detail in details:
+            # PDF 파일명 생성 (사번_이름_귀속년월(지급일))
+            pdf_filename = f"{detail.employee_id}_{detail.employee_name}_{record.pay_year_month}({payment_date}).pdf"
+            pdf_path = os.path.join(pdf_dir, pdf_filename)
+            
+            # HTML 템플릿 렌더링
+            html = render_template('payroll/payroll_pdf.html',
+                                record=record,
+                                detail=detail,
+                                font_css=font_css)
+            
+            # 임시 HTML 파일 생성 (현재 작업 디렉토리에)
+            temp_html = f'temp_{detail.employee_id}.html'
+            with open(temp_html, 'w', encoding='utf-8') as f:
+                f.write(html)
+            
+            # PDF 생성 옵션 설정
+            options = {
+                'enable-local-file-access': None,
+                'encoding': 'utf-8',
+                'page-size': 'A4',
+                'margin-top': '0.75in',
+                'margin-right': '0.75in',
+                'margin-bottom': '0.75in',
+                'margin-left': '0.75in'
+            }
+            
+            try:
+                # PDF 생성
+                config = pdfkit.configuration(wkhtmltopdf=r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe')
+                pdfkit.from_file(temp_html, pdf_path, options=options, configuration=config)
+                generated_count += 1
+                
+            except Exception as e:
+                logger.error(f"PDF 생성 중 오류 발생: {str(e)}")
+                raise
+            finally:
+                # 임시 HTML 파일 삭제
+                if os.path.exists(temp_html):
+                    os.remove(temp_html)
+        
+        # 상태 업데이트
+        record.status = 'PDF_GEN'
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'{generated_count}개의 PDF 파일이 생성되었습니다.'
+        })
+        
+    except Exception as e:
+        logger.error(f"PDF 생성 실패: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'PDF 생성 중 오류가 발생했습니다: {str(e)}'
+        })

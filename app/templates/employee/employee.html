@@ -18,49 +18,6 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-0 d-flex flex-column" style="height: calc(100vh - 120px);">
-                    <!-- 기본 정보 -->
-                    <div class="p-3 bg-light border-bottom">
-                        <form id="employeeForm">
-                            <div class="row g-3">
-                                <div class="col-md-3">
-                                    <label class="form-label">사번 <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" id="empNumber" required>
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">성명 <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" id="name" required>
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">생년월일</label>
-                                    <input type="date" class="form-control" id="birthDate">
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">입사일</label>
-                                    <input type="date" class="form-control" id="joinDate">
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">직위</label>
-                                    <select class="form-select" id="position">
-                                        <option value="">선택</option>
-                                        <option value="사원">사원</option>
-                                        <option value="대리">대리</option>
-                                        <option value="과장">과장</option>
-                                        <option value="차장">차장</option>
-                                        <option value="부장">부장</option>
-                                        <option value="이사">이사</option>
-                                        <option value="상무">상무</option>
-                                        <option value="전무">전무</option>
-                                        <option value="사장">사장</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">이메일</label>
-                                    <input type="email" class="form-control" id="email">
-                                </div>
-                            </div>
-                        </form>
-                    </div>
-
                     <!-- 테이블 툴바 -->
                     <div class="p-3 border-bottom">
                         <div class="d-flex justify-content-between align-items-center">
@@ -90,12 +47,13 @@
                                                 <input class="form-check-input" type="checkbox" id="checkAll" onchange="toggleAllCheckboxes(this)">
                                             </div>
                                         </th>
-                                        <th>사번</th>
-                                        <th>성명</th>
-                                        <th>생년월일</th>
-                                        <th>입사일</th>
-                                        <th>직위</th>
-                                        <th>이메일</th>
+                                        <th>사번 <span class="text-danger">*</span></th>
+                                        <th>성명 <span class="text-danger">*</span></th>
+                                        <th>생년월일 <span class="text-danger">*</span></th>
+                                        <th>입사일 <span class="text-danger">*</span></th>
+                                        <th>직위 <span class="text-danger">*</span></th>
+                                        <th>부서</th>
+                                        <th>이메일 <span class="text-danger">*</span></th>
                                         <th>작업</th>
                                     </tr>
                                 </thead>
@@ -108,7 +66,10 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
-                    <button type="button" class="btn btn-primary" onclick="saveEmployeeData()">저장</button>
+                    <button type="button" class="btn btn-primary" id="btnSave" onclick="saveEmployeeData()">
+                        <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                        <span class="btn-text">저장</span>
+                    </button>
                 </div>
             </div>
         </div>
@@ -204,7 +165,7 @@
             </div>
         </div>
     </div>
-</div>
+                </div>
 
 <!-- Toast 메시지 -->
 <div class="toast-container position-fixed top-0 end-0 p-3">
@@ -230,7 +191,7 @@
     flex-direction: column;
 }
 
-/* 테이블 관련 스타일 */
+/* 테이블 관련 스���일 */
 #employeeModal .table-container {
     overflow: hidden;
     position: relative;
@@ -306,6 +267,12 @@
 .toast {
     font-size: 0.875rem;
 }
+
+/* 로딩 중 스타일 */
+.btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+}
 </style>
 
 <script>
@@ -330,17 +297,17 @@ function updateSelectedCount() {
 
 // 직원 행 추가
 function addEmployeeRow() {
-    const tbody = document.querySelector('#employeeTableBody');
-    const newRow = document.createElement('tr');
+    const tbody = document.getElementById('employeeTableBody');
+    const row = document.createElement('tr');
     
-    newRow.innerHTML = `
+    row.innerHTML = `
         <td>
             <div class="form-check">
                 <input class="form-check-input" type="checkbox" onchange="updateSelectedCount()">
             </div>
         </td>
-        <td><input type="text" class="form-control form-control-sm"></td>
-        <td><input type="text" class="form-control form-control-sm"></td>
+        <td><input type="text" class="form-control form-control-sm" placeholder="사번"></td>
+        <td><input type="text" class="form-control form-control-sm" placeholder="성명"></td>
         <td><input type="date" class="form-control form-control-sm"></td>
         <td><input type="date" class="form-control form-control-sm"></td>
         <td>
@@ -357,7 +324,8 @@ function addEmployeeRow() {
                 <option value="사장">사장</option>
             </select>
         </td>
-        <td><input type="email" class="form-control form-control-sm"></td>
+        <td><input type="text" class="form-control form-control-sm" placeholder="부서"></td>
+        <td><input type="email" class="form-control form-control-sm" placeholder="이메일"></td>
         <td>
             <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('tr').remove(); updateSelectedCount();">
                 <i class="bi bi-trash"></i>
@@ -365,78 +333,229 @@ function addEmployeeRow() {
         </td>
     `;
     
-    tbody.appendChild(newRow);
+    tbody.appendChild(row);
     updateSelectedCount();
 }
 
-// 선택된 행 삭제
-function deleteSelectedRows() {
-    const selectedRows = document.querySelectorAll('#employeeModal tbody .form-check-input:checked');
-    if (selectedRows.length === 0) {
-        showToast('error', '삭제할 항목을 선택해주세요.');
-        return;
-    }
+// 사번 필드 유효성 검사
+function validateEmpNumberField(input) {
+    const empNumber = input.value.trim();
+    const feedbackElement = input.nextElementSibling;
     
-    if (confirm(`선택한 ${selectedRows.length}명의 직원을 삭제하시겠습니까?`)) {
-        selectedRows.forEach(checkbox => {
-            checkbox.closest('tr').remove();
-        });
-        document.querySelector('#checkAll').checked = false;
-        updateSelectedCount();
+    if (empNumber === '') {
+        input.classList.remove('is-valid', 'is-invalid');
+        feedbackElement.textContent = '';
+    } else if (!validateEmpNumber(empNumber)) {
+        input.classList.remove('is-valid');
+        input.classList.add('is-invalid');
+        feedbackElement.textContent = '사번은 1-10자리의 영문자와 숫자만 가능합니다.';
+    } else {
+        input.classList.remove('is-invalid');
+        input.classList.add('is-valid');
+        feedbackElement.textContent = '';
     }
 }
 
-// 직원 데이터 저장
-async function saveEmployeeData() {
-    const rows = document.querySelectorAll('#employeeTableBody tr');
-    const employees = [];
+// 사번 유효성 검사 함수
+function validateEmpNumber(empNumber) {
+    const regex = /^[A-Za-z0-9]{1,10}$/;
+    return regex.test(empNumber);
+}
+
+// 성명 필드 유효성 검사
+function validateEmpNameField(input) {
+    const name = input.value.trim();
+    const feedbackElement = input.nextElementSibling;
     
-    rows.forEach(row => {
-        const inputs = row.querySelectorAll('input, select');
-        const employee = {
-            emp_number: inputs[1].value.trim(),
-            name: inputs[2].value.trim(),
-            birth_date: inputs[3].value || null,
-            join_date: inputs[4].value || null,
-            position: inputs[5].value || '',
-            email: inputs[6].value.trim() || ''
-        };
-        
-        if (employee.emp_number && employee.name) {
-            employees.push(employee);
-        }
-    });
-    
-    if (employees.length === 0) {
-        showToast('error', '저장할 데이터가 없습니다.');
-        return;
+    if (name === '') {
+        input.classList.remove('is-valid');
+        input.classList.add('is-invalid');
+        feedbackElement.textContent = '성명은 필수 입력 항목입니다.';
+    } else {
+        input.classList.remove('is-invalid');
+        input.classList.add('is-valid');
+        feedbackElement.textContent = '';
     }
+}
+
+// 생년월일 필드 유효성 검사
+function validateBirthDateField(input) {
+    const birthDate = new Date(input.value);
+    const today = new Date();
+    const feedbackElement = input.nextElementSibling;
     
+    if (!input.value) {
+        input.classList.remove('is-valid');
+        input.classList.add('is-invalid');
+        feedbackElement.textContent = '생년월일은 필수 입력 항목입니다.';
+    } else if (birthDate > today) {
+        input.classList.remove('is-valid');
+        input.classList.add('is-invalid');
+        feedbackElement.textContent = '생년월일은 현재 날짜보다 이후일 수 없습니다.';
+    } else {
+        input.classList.remove('is-invalid');
+        input.classList.add('is-valid');
+        feedbackElement.textContent = '';
+    }
+}
+
+// 입사일 필드 유효성 검사
+function validateJoinDateField(input, birthDateValue) {
+    const joinDate = new Date(input.value);
+    const birthDate = new Date(birthDateValue);
+    const feedbackElement = input.nextElementSibling;
+    
+    if (!input.value) {
+        input.classList.remove('is-valid');
+        input.classList.add('is-invalid');
+        feedbackElement.textContent = '입사일은 ��수 입력 항목입니다.';
+    } else if (birthDateValue && joinDate < birthDate) {
+        input.classList.remove('is-valid');
+        input.classList.add('is-invalid');
+        feedbackElement.textContent = '입사일은 생년월일보다 이전일 수 없습니다.';
+    } else {
+        input.classList.remove('is-invalid');
+        input.classList.add('is-valid');
+        feedbackElement.textContent = '';
+    }
+}
+
+// 직위 필드 유효성 검사
+function validatePositionField(input) {
+    const feedbackElement = input.nextElementSibling;
+    
+    if (!input.value) {
+        input.classList.remove('is-valid');
+        input.classList.add('is-invalid');
+        feedbackElement.textContent = '직위는 필수 선택 항목입니다.';
+    } else {
+        input.classList.remove('is-invalid');
+        input.classList.add('is-valid');
+        feedbackElement.textContent = '';
+    }
+}
+
+// 이메일 필드 유효성 검사
+function validateEmailField(input) {
+    const email = input.value.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const feedbackElement = input.nextElementSibling;
+    
+    if (!email) {
+        input.classList.remove('is-valid');
+        input.classList.add('is-invalid');
+        feedbackElement.textContent = '이메일은 필수 입력 항목입니다.';
+    } else if (!emailRegex.test(email)) {
+        input.classList.remove('is-valid');
+        input.classList.add('is-invalid');
+        feedbackElement.textContent = '올바른 이메일 형식이 아닙니다.';
+    } else {
+        input.classList.remove('is-invalid');
+        input.classList.add('is-valid');
+        feedbackElement.textContent = '';
+    }
+}
+
+// 저장 버튼 상태 관리 함수
+function toggleSaveButton(isLoading) {
+    const btnSave = document.getElementById('btnSave');
+    const spinner = btnSave.querySelector('.spinner-border');
+    const btnText = btnSave.querySelector('.btn-text');
+    
+    btnSave.disabled = isLoading;
+    if (isLoading) {
+        spinner.classList.remove('d-none');
+        btnText.textContent = '저장 중...';
+    } else {
+        spinner.classList.add('d-none');
+        btnText.textContent = '저장';
+    }
+}
+
+// 직원 정보 저장
+async function saveEmployeeData() {
     try {
+        const modal = document.getElementById('employeeModal');
+        const rows = modal.querySelectorAll('tbody tr');
+        const employees = [];
+        
+        rows.forEach(row => {
+            const inputs = row.querySelectorAll('input, select');
+            if (inputs.length >= 8) {  // 최소 필수 필드 수 확인
+                const employee = {
+                    id: row.dataset.employeeId,  // ��원 ID 추가
+                    emp_number: inputs[1].value.trim(),
+                    name: inputs[2].value.trim(),
+                    birth_date: inputs[3].value,
+                    join_date: inputs[4].value,
+                    position: inputs[5].value,
+                    department: inputs[6].value.trim(),
+                    email: inputs[7].value.trim()
+                };
+                
+                // 필수 필드 검증
+                if (employee.emp_number && employee.name && 
+                    employee.birth_date && employee.join_date && 
+                    employee.position && employee.email) {
+                    employees.push(employee);
+                }
+            }
+        });
+        
+        if (employees.length === 0) {
+            await showWarning('저장할 데이터가 없거나 필수 항목이 누락되었습니다.');
+            return;
+        }
+
+        // 저장 확인
+        const confirmResult = await showConfirm('직원 정보를 저장하시겠습니까?', '저장');
+        if (!confirmResult.isConfirmed) {
+            return;
+        }
+        
+        // 저장 버튼 비활성화
+        const saveButton = modal.querySelector('button[onclick="saveEmployeeData()"]');
+        if (saveButton) {
+            saveButton.disabled = true;
+            saveButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>저장 중...';
+        }
+
+        showLoading('저장 중...');
+        
         const response = await fetch('/employee/save', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': csrfToken
             },
-            body: JSON.stringify(employees[0])  // 단일 직원 데이터만 전송
+            body: JSON.stringify(employees[0])  // 현재는 한 명씩만 저장
         });
         
         const result = await response.json();
         
         if (result.success) {
-            showToast('success', '저장되었습니다.');
-            bootstrap.Modal.getInstance(document.getElementById('employeeModal')).hide();
-            loadEmployeeList();
+            await showSuccess(result.message || '직원 정보가 저장되었습니다.');
+            const bsModal = bootstrap.Modal.getInstance(modal);
+            bsModal.hide();
+            loadEmployeeList();  // 목록 새로고침
         } else {
-            showToast('error', result.message || '저장 중 오류가 발생했습니다.');
             if (result.errors) {
-                console.error('Validation errors:', result.errors);
+                await showError(result.errors.join('\n'));
+            } else {
+                await showError(result.message || '저장 중 오류가 발생했습니다.');
             }
         }
     } catch (error) {
-        showToast('error', '저장 중 오류가 발생했습니다.');
         console.error('Save error:', error);
+        await showError('저장 중 오류가 발생했습니다.');
+    } finally {
+        // 저장 버튼 상태 복원
+        const saveButton = document.querySelector('button[onclick="saveEmployeeData()"]');
+        if (saveButton) {
+            saveButton.disabled = false;
+            saveButton.innerHTML = '저장';
+        }
+        Swal.close();
     }
 }
 
@@ -480,43 +599,86 @@ async function loadEmployeeList() {
             document.getElementById('newEmployeeCount').textContent = `${newEmployees.length}명`;
         }
     } catch (error) {
-        showToast('error', '데이터 조회 중 오류가 발생했습니다.');
+        await showError('데이터 조회 중 오류가 발생했습니다.');
     }
 }
 
 // 직원 수정
 async function editEmployee(id) {
     try {
-        const response = await fetch(`/employee/${id}`);
+        const response = await fetch(`/employee/${id}`, {
+            headers: {
+                'X-CSRFToken': csrfToken
+            }
+        });
         const result = await response.json();
         
         if (result.success) {
             const employee = result.data;
+            const modal = document.getElementById('employeeModal');
+            const tbody = modal.querySelector('tbody');
+            tbody.innerHTML = '';
             
-            // 모달 필드에 데이터 설정
-            document.getElementById('empNumber').value = employee.emp_number;
-            document.getElementById('name').value = employee.name;
-            document.getElementById('birthDate').value = employee.birth_date || '';
-            document.getElementById('joinDate').value = employee.join_date || '';
-            document.getElementById('position').value = employee.position || '';
-            document.getElementById('email').value = employee.email || '';
+            const row = document.createElement('tr');
+            row.dataset.employeeId = employee.id;  // ID를 데이터 속성으로 저장
+            row.innerHTML = `
+                <td>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" onchange="updateSelectedCount()">
+                    </div>
+                </td>
+                <td><input type="text" class="form-control form-control-sm" value="${employee.emp_number}" placeholder="사번"></td>
+                <td><input type="text" class="form-control form-control-sm" value="${employee.name}" placeholder="성명"></td>
+                <td><input type="date" class="form-control form-control-sm" value="${employee.birth_date}"></td>
+                <td><input type="date" class="form-control form-control-sm" value="${employee.join_date}"></td>
+                <td>
+                    <select class="form-select form-select-sm">
+                        <option value="">선택</option>
+                        <option value="사원" ${employee.position === '사원' ? 'selected' : ''}>사원</option>
+                        <option value="대리" ${employee.position === '대리' ? 'selected' : ''}>대리</option>
+                        <option value="과장" ${employee.position === '과장' ? 'selected' : ''}>과장</option>
+                        <option value="차장" ${employee.position === '차장' ? 'selected' : ''}>차장</option>
+                        <option value="부장" ${employee.position === '부장' ? 'selected' : ''}>부장</option>
+                        <option value="이사" ${employee.position === '이사' ? 'selected' : ''}>이사</option>
+                        <option value="상무" ${employee.position === '상무' ? 'selected' : ''}>상무</option>
+                        <option value="전무" ${employee.position === '전무' ? 'selected' : ''}>전무</option>
+                        <option value="사장" ${employee.position === '사장' ? 'selected' : ''}>사장</option>
+                    </select>
+                </td>
+                <td><input type="text" class="form-control form-control-sm" value="${employee.department || ''}" placeholder="부서"></td>
+                <td><input type="email" class="form-control form-control-sm" value="${employee.email}" placeholder="이메일"></td>
+                <td>
+                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('tr').remove(); updateSelectedCount();">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            `;
+            
+            tbody.appendChild(row);
+            updateSelectedCount();
             
             // 모달 표시
-            const modal = new bootstrap.Modal(document.getElementById('employeeModal'));
-            modal.show();
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+        } else {
+            await showError(result.message || '직원 정보를 불러오는데 실패했습니다.');
         }
     } catch (error) {
-        showToast('error', '데이터 조회 중 오류가 발생했습니다.');
+        console.error('Error:', error);
+        await showError('직원 정보를 불러오는 중 오류가 발생했습니다.');
     }
 }
 
 // 직원 삭제
 async function deleteEmployee(id) {
-    if (!confirm('선택한 직원을 삭제하시겠습니까?')) {
+    const confirmResult = await showConfirm('선택한 직원을 삭제하시겠습니까?', '삭제');
+    if (!confirmResult.isConfirmed) {
         return;
     }
     
     try {
+        showLoading('삭제 중...');
+
         const response = await fetch(`/employee/${id}`, {
             method: 'DELETE',
             headers: {
@@ -526,35 +688,16 @@ async function deleteEmployee(id) {
         const result = await response.json();
         
         if (result.success) {
-            showToast('success', '삭제되었습니다.');
+            await showSuccess('삭제되었습니다.');
             loadEmployeeList();
         } else {
-            showToast('error', result.message);
+            await showError(result.message);
         }
     } catch (error) {
-        showToast('error', '삭제 중 오류가 발생했습니다.');
+        await showError('삭제 중 오류가 발생했습니다.');
+    } finally {
+        Swal.close();
     }
-}
-
-// 토스트 메시지 표시
-function showToast(type, message) {
-    const toastEl = document.getElementById('toast');
-    const toastBody = toastEl.querySelector('.toast-body');
-    toastBody.textContent = message;
-    
-    toastEl.classList.remove('bg-success', 'bg-danger', 'text-white');
-    
-    switch (type) {
-        case 'success':
-            toastEl.classList.add('bg-success', 'text-white');
-            break;
-        case 'error':
-            toastEl.classList.add('bg-danger', 'text-white');
-            break;
-    }
-    
-    const toast = new bootstrap.Toast(toastEl);
-    toast.show();
 }
 
 // 검색 기능
@@ -567,6 +710,8 @@ document.getElementById('btnSearch').addEventListener('click', async function() 
     });
     
     try {
+        showLoading('검색 중...');
+
         const response = await fetch(`/employee/search?${params}`, {
             headers: {
                 'X-CSRFToken': csrfToken
@@ -600,13 +745,17 @@ document.getElementById('btnSearch').addEventListener('click', async function() 
             });
         }
     } catch (error) {
-        showToast('error', '검색 중 오류가 발생했습니다.');
+        await showError('검색 중 오류가 발생했습니다.');
+    } finally {
+        Swal.close();
     }
 });
 
 // 엑셀 다운로드
 document.getElementById('btnExcelDownload').addEventListener('click', async function() {
     try {
+        showLoading('엑셀 파일 생성 중...');
+
         const response = await fetch('/employee/export', {
             headers: {
                 'X-CSRFToken': csrfToken
@@ -621,8 +770,11 @@ document.getElementById('btnExcelDownload').addEventListener('click', async func
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
+        await showSuccess('엑셀 파일이 생성되었습니다.');
     } catch (error) {
-        showToast('error', '엑셀 다운로드 중 오류가 발생했습니다.');
+        await showError('엑셀 다운로드 중 오류가 발생했습니다.');
+    } finally {
+        Swal.close();
     }
 });
 

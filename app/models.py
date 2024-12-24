@@ -7,6 +7,30 @@ from pytz import timezone
 def get_korea_time():
     return datetime.now(timezone('Asia/Seoul'))
 
+class CodeGroup(db.Model):
+    __tablename__ = 'code_groups'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    group_code = db.Column(db.String(20), unique=True, nullable=False)
+    group_name = db.Column(db.String(50), nullable=False)
+    use_yn = db.Column(db.String(1), default='Y')
+    created_at = db.Column(db.DateTime, default=get_korea_time)
+
+class Code(db.Model):
+    __tablename__ = 'codes'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    group_code = db.Column(db.String(20), nullable=False)
+    code = db.Column(db.String(20), nullable=False)
+    name = db.Column(db.String(50), nullable=False)
+    order_seq = db.Column(db.Integer, default=0)
+    use_yn = db.Column(db.String(1), default='Y')
+    created_at = db.Column(db.DateTime, default=get_korea_time)
+    
+    __table_args__ = (
+        db.UniqueConstraint('group_code', 'code', name='uix_group_code_code'),
+    )
+
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -38,13 +62,20 @@ def load_user(id):
 
 class Employee(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    emp_number = db.Column(db.String(20), unique=True, nullable=False)  # 사번
-    name = db.Column(db.String(100), nullable=False)  # 이름
-    birth_date = db.Column(db.Date)  # 생년월일
-    join_date = db.Column(db.Date)  # 입사일
-    position = db.Column(db.String(50))  # 직위
+    emp_number = db.Column(db.String(10), unique=True, nullable=False)
+    name = db.Column(db.String(50), nullable=False)
+    birth_date = db.Column(db.Date)
+    join_date = db.Column(db.Date)
+    position = db.Column(db.String(20))
+    department = db.Column(db.String(50))
     email = db.Column(db.String(120), unique=True)
-    pdf_password = db.Column(db.String(100))
+    pdf_password = db.Column(db.String(128))
+    created_at = db.Column(db.DateTime, default=get_korea_time)
+    created_by = db.Column(db.String(50))
+    created_ip = db.Column(db.String(50))
+    updated_at = db.Column(db.DateTime, onupdate=get_korea_time)
+    updated_by = db.Column(db.String(50))
+    updated_ip = db.Column(db.String(50))
 
     # 생성 정보
     created_at = db.Column(db.DateTime, default=get_korea_time)
@@ -72,51 +103,45 @@ class Employee(db.Model):
             'updated_by': self.updated_by
         }
 
-    def record_history(self, field_name, old_value, new_value, user, ip_address):
-        """변경 이력 기록"""
-        history = EmployeeHistory(
-            employee_id=self.id,
-            field_name=field_name,
-            old_value=str(old_value) if old_value is not None else '',
-            new_value=str(new_value) if new_value is not None else '',
-            changed_by=user,
-            changed_ip=ip_address
-        )
-        db.session.add(history)
-
-class Salary(db.Model):
+class EmployeeHistory(db.Model):
+    """직원 정보 변경 이력"""
     id = db.Column(db.Integer, primary_key=True)
-    emp_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=False)
-    payment_date = db.Column(db.Date, nullable=False)  # 지급일
-    base_salary = db.Column(db.Integer)  # 기본급
-    position_bonus = db.Column(db.Integer)  # 직책수당
-    overtime_pay = db.Column(db.Integer)  # 연장근로수당
-    meal_allowance = db.Column(db.Integer)  # 식대
-    # ... 기타 급여 항목들
-    
-    employee = db.relationship('Employee', backref='salaries') 
+    employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=False)
+    change_type = db.Column(db.String(20), nullable=False)  # INSERT, UPDATE, DELETE
+    field_name = db.Column(db.String(50), nullable=False)
+    old_value = db.Column(db.String(200))
+    new_value = db.Column(db.String(200))
+    created_at = db.Column(db.DateTime, default=get_korea_time)
+    created_by = db.Column(db.String(80))
+    created_ip = db.Column(db.String(45))
+
+    employee = db.relationship('Employee', backref=db.backref('history', lazy=True))
 
 class PayrollRecord(db.Model):
+    __tablename__ = 'payroll_record'
+    
     id = db.Column(db.Integer, primary_key=True)
     pay_year_month = db.Column(db.String(7), nullable=False)  # YYYY-MM 형식
     payment_date = db.Column(db.Date, nullable=False)
-    status = db.Column(db.String(20), default='임시저장')  # 임시저장, 완료
+    status = db.Column(db.String(20), default='TEMP_SAVE')
     
-    # 생성 정보
-    created_at = db.Column(db.DateTime, default=get_korea_time)
-    created_by = db.Column(db.String(80))  # 생성자 username
-    created_ip = db.Column(db.String(45))  # IPv6까지 고려한 길이
-    
-    # 수정 정보
-    updated_at = db.Column(db.DateTime, onupdate=get_korea_time)
-    updated_by = db.Column(db.String(80))  # 수정자 username
-    updated_ip = db.Column(db.String(45))  # IPv6까지 고려한 길이
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_by = db.Column(db.String(80))
+    created_ip = db.Column(db.String(45))
+    updated_at = db.Column(db.DateTime)
+    updated_by = db.Column(db.String(80))
+    updated_ip = db.Column(db.String(45))
     
     details = db.relationship('PayrollDetail', backref='record', lazy=True)
+    
+    def __repr__(self):
+        return f'<PayrollRecord {self.pay_year_month}>'
 
 class PayrollDetail(db.Model):
+    __tablename__ = 'payroll_detail'
+    
     id = db.Column(db.Integer, primary_key=True)
-    record_id = db.Column(db.Integer, db.ForeignKey('payroll_record.id'), nullable=False)
+    record_id = db.Column(db.Integer, db.ForeignKey('payroll_record.id', ondelete='CASCADE'), nullable=False)
     employee_id = db.Column(db.String(20), nullable=False)
     employee_name = db.Column(db.String(100), nullable=False)
     department = db.Column(db.String(100))
@@ -138,19 +163,5 @@ class PayrollDetail(db.Model):
     employment_insurance = db.Column(db.Integer, default=0)  # 고용보험
     total_deduction = db.Column(db.Integer, default=0)  # 공제액 계
     
-    # 실수령액
-    net_amount = db.Column(db.Integer, default=0)
-    
-    created_at = db.Column(db.DateTime, default=get_korea_time)
-
-class EmployeeHistory(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=False)
-    field_name = db.Column(db.String(50), nullable=False)  # 변경된 필드명
-    old_value = db.Column(db.String(200))  # 이전 값
-    new_value = db.Column(db.String(200))  # 새로운 값
-    changed_by = db.Column(db.String(80))  # 변경한 사용자
-    changed_at = db.Column(db.DateTime, default=get_korea_time)  # 변경 시간
-    changed_ip = db.Column(db.String(45))  # 변경한 IP
-
-    employee = db.relationship('Employee', backref='history')
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)

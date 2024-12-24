@@ -56,10 +56,12 @@ desktop.ini
 *.temp
 .coverage
 htmlcov/
+temp_*.html
 
 # Media and Static files
 media/
 static/temp/
+static/pdfs/
 uploads/
 
 # Local development settings

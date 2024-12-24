@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, current_app, send_file
 from flask_login import login_required, current_user
 from app import db
-from app.models import Employee, User, EmployeeHistory
+from app.models import Employee, User, EmployeeHistory, get_korea_time
 from datetime import datetime
 from functools import wraps
 import re
@@ -39,8 +39,8 @@ def validate_employee_data(data, is_update=False):
             errors.append('성명은 필수 입력 항목입니다.')
             
     # 사번 형식 검증
-    if data.get('emp_number') and not re.match(r'^[A-Za-z0-9]{4,10}$', data['emp_number']):
-        errors.append('사번은 4-10자리의 영문자와 숫자만 가능합니다.')
+    if data.get('emp_number') and not re.match(r'^[A-Za-z0-9]{1,10}$', data['emp_number']):
+        errors.append('사번은 1-10자리의 영문자와 숫자만 가능합니다.')
         
     # 이메일 형식 검증
     if data.get('email') and not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', data['email']):
@@ -67,35 +67,28 @@ def index():
 @admin_required
 def get_employee_list():
     try:
-        logger.info("직원 목록 조회 시작")
         employees = Employee.query.all()
-        logger.info(f"조회된 직원 수: {len(employees)}")
+        employee_list = [{
+            'id': emp.id,
+            'emp_number': emp.emp_number,
+            'name': emp.name,
+            'birth_date': emp.birth_date.strftime('%Y-%m-%d') if emp.birth_date else None,
+            'join_date': emp.join_date.strftime('%Y-%m-%d') if emp.join_date else None,
+            'position': emp.position,
+            'department': emp.department,
+            'email': emp.email
+        } for emp in employees]
         
-        result = []
-        for emp in employees:
-            try:
-                result.append({
-                    'id': emp.id,
-                    'emp_number': emp.emp_number,
-                    'name': emp.name,
-                    'birth_date': emp.birth_date.strftime('%Y-%m-%d') if emp.birth_date else '',
-                    'join_date': emp.join_date.strftime('%Y-%m-%d') if emp.join_date else '',
-                    'position': emp.position,
-                    'email': emp.email,
-                    'created_at': emp.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                    'created_by': emp.created_by,
-                    'updated_at': emp.updated_at.strftime('%Y-%m-%d %H:%M:%S') if emp.updated_at else '',
-                    'updated_by': emp.updated_by
-                })
-            except Exception as e:
-                logger.error(f"직원 데이터 변환 중 오류 발생: {str(e)}, 직원 ID: {emp.id}")
-                continue
-        
-        logger.info("직원 목록 조회 완료")
-        return jsonify({'success': True, 'data': result})
+        return jsonify({
+            'success': True,
+            'data': employee_list
+        })
     except Exception as e:
         logger.error(f"직원 목록 조회 중 오류 발생: {str(e)}")
-        return jsonify({'success': True, 'data': []})
+        return jsonify({
+            'success': False,
+            'message': '직원 목록을 불러오는데 실패했습니다.'
+        }), 500
 
 @employee.route('/employee/save', methods=['POST'])
 @login_required
@@ -105,47 +98,103 @@ def save_employee():
         data = request.get_json()
         
         # 데이터 유효성 검사
-        errors = validate_employee_data(data)
+        errors = validate_employee_data(data, is_update='id' in data)
         if errors:
             return jsonify({
                 'success': False,
                 'message': '입력 데이터가 올바르지 않습니다.',
                 'errors': errors
             }), 400
+
+        # 기존 직원 검색 (ID로만 검색)
+        existing_employee = None
+        if data.get('id'):
+            existing_employee = Employee.query.get(data['id'])
+
+        if existing_employee:
+            # 기존 직원 정보 업데이트
+            existing_employee.emp_number = data['emp_number']
+            existing_employee.name = data['name']
+            existing_employee.birth_date = datetime.strptime(data['birth_date'], '%Y-%m-%d').date() if data.get('birth_date') else None
+            existing_employee.join_date = datetime.strptime(data['join_date'], '%Y-%m-%d').date() if data.get('join_date') else None
+            existing_employee.position = data.get('position')
+            existing_employee.department = data.get('department')
+            existing_employee.email = data['email']
+            existing_employee.updated_at = get_korea_time()
+            existing_employee.updated_by = current_user.username
+            existing_employee.updated_ip = request.remote_addr
             
-        # 사번 중복 체크
-        existing_emp = Employee.query.filter_by(emp_number=data['emp_number']).first()
-        if existing_emp:
-            return jsonify({
-                'success': False,
-                'message': f"사번 '{data['emp_number']}'가 이미 존재합니다."
-            }), 409
+            try:
+                db.session.commit()
+                return jsonify({
+                    'success': True,
+                    'message': '직원 정보가 업데이트되었습니다.',
+                    'data': {
+                        'id': existing_employee.id,
+                        'emp_number': existing_employee.emp_number
+                    }
+                })
+            except Exception as e:
+                db.session.rollback()
+                if 'UNIQUE constraint' in str(e):
+                    if 'employee.emp_number' in str(e):
+                        return jsonify({
+                            'success': False,
+                            'message': '이미 사용 중인 사번입니다.'
+                        }), 409
+                    elif 'employee.email' in str(e):
+                        return jsonify({
+                            'success': False,
+                            'message': '이미 사용 중인 이메일입니다.'
+                        }), 409
+                raise
+        else:
+            # 새 직원 등록
+            try:
+                new_employee = Employee(
+                    emp_number=data['emp_number'],
+                    name=data['name'],
+                    birth_date=datetime.strptime(data['birth_date'], '%Y-%m-%d').date() if data.get('birth_date') else None,
+                    join_date=datetime.strptime(data['join_date'], '%Y-%m-%d').date() if data.get('join_date') else None,
+                    position=data.get('position'),
+                    department=data.get('department'),
+                    email=data['email'],
+                    created_by=current_user.username,
+                    created_ip=request.remote_addr
+                )
+                
+                db.session.add(new_employee)
+                db.session.commit()
+                
+                return jsonify({
+                    'success': True,
+                    'message': '새 직원이 등록되었습니다.',
+                    'data': {
+                        'id': new_employee.id,
+                        'emp_number': new_employee.emp_number
+                    }
+                })
+            except Exception as e:
+                db.session.rollback()
+                if 'UNIQUE constraint' in str(e):
+                    if 'employee.emp_number' in str(e):
+                        return jsonify({
+                            'success': False,
+                            'message': '이미 사용 중인 사번입니다.'
+                        }), 409
+                    elif 'employee.email' in str(e):
+                        return jsonify({
+                            'success': False,
+                            'message': '이미 사용 중인 이메일입니다.'
+                        }), 409
+                raise
             
-        # 새 직원 생성
-        employee = Employee(
-            emp_number=data['emp_number'],
-            name=data['name'],
-            birth_date=datetime.strptime(data['birth_date'], '%Y-%m-%d').date() if data.get('birth_date') else None,
-            join_date=datetime.strptime(data['join_date'], '%Y-%m-%d').date() if data.get('join_date') else None,
-            position=data.get('position', ''),
-            email=data.get('email', ''),
-            created_by=current_user.username,
-            created_ip=request.remote_addr
-        )
-        
-        db.session.add(employee)
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': '직원이 성공적으로 등록되었습니다.'
-        })
-        
     except Exception as e:
         db.session.rollback()
+        logger.error(f"직원 정보 저장 중 오류 발생: {str(e)}")
         return jsonify({
             'success': False,
-            'message': f'직원 등록 중 오류가 발생했습니다: {str(e)}'
+            'message': '직원 정보 저장 중 오류가 발생했습니다.'
         }), 500
 
 @employee.route('/employee/update/<int:id>', methods=['PUT'])
@@ -264,7 +313,7 @@ def bulk_save_employees():
         if not data or not isinstance(data, list):
             return jsonify({
                 'success': False,
-                'message': '올바른 데이터 형식이 아닙니다.'
+                'message': '바른 데이터 형식이 아닙니다.'
             }), 400
             
         success_count = 0
@@ -320,7 +369,7 @@ def bulk_save_employees():
             'message': f'직원 일괄 등록 중 오류가 발생했습니다: {str(e)}'
         }), 500
 
-# 직원 검�� 및 필터링
+# 직원 검색 및 필터링
 @employee.route('/employee/search', methods=['GET'])
 @login_required
 @admin_required
@@ -431,7 +480,7 @@ def export_employees():
             'message': f'엑셀 파일 생성 중 오류가 발생했습니다: {str(e)}'
         }), 500
 
-# 직원 ���보 엑셀 일괄 등록
+# 직원 정보 엑셀 일괄 등록
 @employee.route('/employee/import', methods=['POST'])
 @login_required
 @admin_required
@@ -596,4 +645,37 @@ def get_employee_stats():
         return jsonify({
             'success': False,
             'message': f'통계 데이터 조회 중 오류가 발생했습니다: {str(e)}'
+        }), 500
+
+@employee.route('/employee/<int:id>', methods=['GET'])
+@login_required
+@admin_required
+def get_employee(id):
+    try:
+        employee = Employee.query.get(id)
+        if not employee:
+            return jsonify({
+                'success': False,
+                'message': '해당 직원을 찾을 수 없습니다.'
+            }), 404
+            
+        return jsonify({
+            'success': True,
+            'data': {
+                'id': employee.id,
+                'emp_number': employee.emp_number,
+                'name': employee.name,
+                'birth_date': employee.birth_date.strftime('%Y-%m-%d') if employee.birth_date else None,
+                'join_date': employee.join_date.strftime('%Y-%m-%d') if employee.join_date else None,
+                'position': employee.position,
+                'department': employee.department,
+                'email': employee.email
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"직원 정보 조회 중 오류 발생: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': '직원 정보 조회 중 오류가 발생했습니다.'
         }), 500 

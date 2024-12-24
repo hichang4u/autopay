@@ -1,0 +1,177 @@
+{
+    "javascript": {
+        "formatter": "prettier",
+        "formatterOptions": {
+            "printWidth": 120,
+            "tabWidth": 4,
+            "useTabs": false,
+            "semi": true,
+            "singleQuote": true,
+            "trailingComma": "es5",
+            "bracketSpacing": true,
+            "arrowParens": "avoid"
+        },
+        "linter": "eslint",
+        "linterOptions": {
+            "env": {
+                "browser": true,
+                "jquery": true,
+                "bootstrap": true
+            }
+        }
+    },
+    "python": {
+        "formatter": "black",
+        "formatterOptions": {
+            "line_length": 120
+        },
+        "linter": "flake8",
+        "linterOptions": {
+            "max-line-length": 120,
+            "ignore": ["E402", "F403", "F405"],
+            "exclude": ["venv/*", "__pycache__/*", "migrations/*"]
+        }
+    },
+    "html": {
+        "formatter": "prettier",
+        "formatterOptions": {
+            "printWidth": 120,
+            "tabWidth": 4,
+            "useTabs": false,
+            "semi": true,
+            "singleQuote": true,
+            "bracketSpacing": true,
+            "htmlWhitespaceSensitivity": "css"
+        }
+    },
+    "css": {
+        "formatter": "prettier",
+        "formatterOptions": {
+            "printWidth": 120,
+            "tabWidth": 4,
+            "useTabs": false
+        }
+    },
+    "sql": {
+        "formatter": "sql-formatter",
+        "formatterOptions": {
+            "language": "sqlite",
+            "uppercase": true,
+            "linesBetweenQueries": 2
+        }
+    },
+    "excludeFiles": [
+        "**/.git/**",
+        "**/node_modules/**",
+        "**/venv/**",
+        "**/__pycache__/**",
+        "**/.pytest_cache/**",
+        "**/dist/**",
+        "**/build/**",
+        "wrsoft.db",
+        ".env",
+        "*.pyc",
+        "*.pyo",
+        "*.pyd",
+        "*.so",
+        "*.pdf"
+    ],
+    "search": {
+        "excludeFiles": [
+            "**/.git/**",
+            "**/node_modules/**",
+            "**/venv/**",
+            "**/__pycache__/**",
+            "**/.pytest_cache/**",
+            "**/dist/**",
+            "**/build/**",
+            "wrsoft.db",
+            ".env",
+            "*.pyc",
+            "*.pyo",
+            "*.pyd",
+            "*.so",
+            "*.pdf"
+        ],
+        "includeFiles": [
+            "app/**/*.py",
+            "app/**/*.html",
+            "app/**/*.js",
+            "app/**/*.css",
+            "*.py",
+            "*.sql",
+            "docker-compose.yml",
+            "Dockerfile"
+        ]
+    },
+    "workspaceRoots": [
+        "app/templates",
+        "app/static",
+        "app/routes",
+        "app/models.py",
+        "app/forms.py"
+    ],
+    "fileAssociations": {
+        "*.html": "jinja-html"
+    },
+    "intellisense": {
+        "python": {
+            "extraPaths": ["app"]
+        }
+    },
+    "projectStructure": {
+        "root": "autopay",
+        "mainFiles": {
+            "entryPoint": "run.py",
+            "config": "config.py",
+            "requirements": "requirements.txt",
+            "database": {
+                "schema": "database_schema.sql",
+                "init": ["init_db.py", "init_admin.py"]
+            },
+            "docker": {
+                "dockerfile": "Dockerfile",
+                "compose": "docker-compose.yml",
+                "ignore": ".dockerignore"
+            }
+        },
+        "app": {
+            "root": "app",
+            "init": "__init__.py",
+            "models": "models.py",
+            "forms": "forms.py",
+            "routes": {
+                "root": "routes",
+                "modules": {
+                    "auth": "auth.py",
+                    "employee": "employee.py",
+                    "payroll": "payroll.py"
+                }
+            },
+            "templates": {
+                "root": "templates",
+                "base": "base.html",
+                "modules": {
+                    "auth": "auth/*",
+                    "employee": "employee/*",
+                    "payroll": "payroll/*"
+                }
+            },
+            "static": {
+                "root": "static",
+                "css": "css/*",
+                "images": "img/*"
+            }
+        },
+        "dependencies": {
+            "python": {
+                "venv": "venv",
+                "requirements": "requirements.txt"
+            },
+            "database": {
+                "type": "sqlite",
+                "file": "wrsoft.db"
+            }
+        }
+    }
+} 

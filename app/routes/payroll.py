@@ -32,7 +32,7 @@ def validate_payroll_data(data):
     required_fields = ['pay_year_month', 'payment_date', 'employees']
     for field in required_fields:
         if field not in data:
-            errors.append(f"필수 필드 '{field}'가 누락되었습니다.")
+            errors.append(f"필�� 필드 '{field}'가 누락되었습니다.")
     
     if not errors:
         # 날짜 형식 검사
@@ -163,7 +163,7 @@ def save_payroll():
         
     except Exception as e:
         db.session.rollback()
-        logger.error(f"급여 데이터 저장 실패: {str(e)}")
+        logger.error(f"급여 데이터 저장 실��: {str(e)}")
         return jsonify({
             'success': False,
             'message': f'저장 중 오류가 발생했습니다: {str(e)}'
@@ -249,7 +249,7 @@ def parse_excel():
         return jsonify(data)
     except Exception as e:
         return jsonify({
-            'error': f'파일 처리 중 오류가 발생했습니다: {str(e)}'
+            'error': f'파일 처리 중 오���가 발생했습니다: {str(e)}'
         }), 500
 
 # 급여 데이터 조회 API
@@ -606,6 +606,7 @@ def generate_pdf(record_id):
                 config = pdfkit.configuration(wkhtmltopdf=r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe')
                 pdfkit.from_file(temp_html, pdf_path, options=options, configuration=config)
                 generated_count += 1
+                logger.info(f"PDF 생성 성공: {pdf_filename}")
                 
             except Exception as e:
                 logger.error(f"PDF 생성 중 오류 발생: {str(e)}")
@@ -621,12 +622,17 @@ def generate_pdf(record_id):
         
         return jsonify({
             'success': True,
-            'message': f'{generated_count}개의 PDF 파일이 생성되었습니다.'
+            'message': f'{generated_count}개의 PDF 파일이 생성되었습니다.',
+            'data': {
+                'count': generated_count,
+                'directory': pdf_dir
+            }
         })
         
     except Exception as e:
         logger.error(f"PDF 생성 실패: {str(e)}")
+        db.session.rollback()
         return jsonify({
             'success': False,
             'message': f'PDF 생성 중 오류가 발생했습니다: {str(e)}'
-        })
+        }), 500

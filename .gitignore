@@ -73,4 +73,8 @@ docker-compose.override.yml
 
 # Package manager
 pip-log.txt
-pip-delete-this-directory.txt 
+pip-delete-this-directory.txt
+
+# PDF files and directories
+app/static/pdfs/
+*.pdf 

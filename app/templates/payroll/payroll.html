@@ -773,7 +773,7 @@ function getStatusBadge(record) {
         }
     };
 
-    // 상태값이 깨진 경우를 처리하기 위한 정규화 함수
+    // 상태값이 깨진 우를 처리하기 위한 정규화 함수
     function normalizeStatus(status) {
         if (status.includes('임시') || status.includes('저장')) return 'TEMP_SAVE';
         if (status === '완료') return 'PROC_CMPT';
@@ -956,16 +956,8 @@ async function handlePayrollDocument(recordId) {
         
         if (result.success) {
             await showSuccess(result.message);
-            // PDF 파일 다운로드 링크 생성
-            result.pdf_urls.forEach(url => {
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = url.split('/').pop();
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            });
-            loadPayrollList();  // 목록 새로고침
+            // 목록 새로고침
+            loadPayrollList();
         } else {
             throw new Error(result.message);
         }
@@ -1144,7 +1136,7 @@ async function viewPayrollDetail(recordId) {
 // 급여 데이터 삭제 함수
 async function deletePayroll(recordId) {
     const result = await Swal.fire({
-        title: '정말 삭제하시겠습니까?',
+        title: '정말 삭��하시겠습니까?',
         text: "삭제된 데이터는 복구할 수 없습니다.",
         icon: 'warning',
         showCancelButton: true,
@@ -1244,28 +1236,29 @@ function setupCalculations(row) {
 }
 
 function generatePDF(recordId) {
+    if (!confirm('PDF를 생성하시겠습니까?')) {
+        return;
+    }
+
     fetch(`/generate-pdf/${recordId}`, {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCSRFToken()
+            'Content-Type': 'application/json'
         }
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showSuccess(data.message);
-            // PDF 파일 다운로드
-            window.open(data.pdf_url, '_blank');
-            // 목록 새로고침
+            alert(data.message);
+            // PDF 생성 성공 후 목록 새로고침
             loadPayrollList();
         } else {
-            showError(data.message);
+            alert(data.message);
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        showError('PDF 생성 �� 오류가 발생했습니다.');
+        alert('PDF 생성 중 오류가 발생했습니다.');
     });
 }
 </script>

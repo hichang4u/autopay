@@ -1,0 +1,690 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>급여관리</h2>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#generatePayrollModal">
+            <i class="bi bi-plus-lg me-1"></i>급여명세서 생성
+        </button>
+    </div>
+
+    <!-- 급여명세서 생성 모달 -->
+    <div class="modal fade" id="generatePayrollModal" tabindex="-1">
+        <div class="modal-dialog modal-fullscreen">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">급여정산 입력</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0 d-flex flex-column" style="height: calc(100vh - 120px);">
+                    <!-- 기본 정보 -->
+                    <div class="p-3 bg-light border-bottom">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">귀속연월</label>
+                                <input type="month" class="form-control">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">지급일</label>
+                                <input type="date" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 테이블 툴바 -->
+                    <div class="p-3 border-bottom">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted small" id="selectedCount">총 0명 | 선택 0명</span>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="addEmployeeRow()">
+                                    <i class="bi bi-plus-lg me-1"></i>사원 추가
+                                </button>
+                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="deleteSelectedRows()">
+                                    <i class="bi bi-trash me-1"></i>선택 삭제
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm">
+                                    <i class="bi bi-calculator me-1"></i>자동계산
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 테이블 영역 -->
+                    <div class="table-container flex-grow-1">
+                        <div class="table-responsive h-100">
+                            <table class="table table-hover mb-0" style="min-width: 2000px;">
+                                <thead>
+                                    <tr>
+                                        <th rowspan="2">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="checkAll" onchange="toggleAllCheckboxes(this)">
+                                            </div>
+                                        </th>
+                                        <th colspan="4" class="text-center">기본정보</th>
+                                        <th colspan="5" class="text-center">지급항목</th>
+                                        <th colspan="7" class="text-center">공제항목</th>
+                                        <th rowspan="2" class="text-center">실수령액</th>
+                                    </tr>
+                                    <tr>
+                                        <th>사번</th>
+                                        <th>성명</th>
+                                        <th>부서</th>
+                                        <th>직위</th>
+                                        
+                                        <!-- 지급 항목 -->
+                                        <th>기본급</th>
+                                        <th>직책수당</th>
+                                        <th>식대</th>
+                                        <th>자가운전보조금</th>
+                                        <th>지급액 계</th>
+                                        
+                                        <!-- 공제 항목 -->
+                                        <th>소득세</th>
+                                        <th>지방소득세</th>
+                                        <th>국민연금</th>
+                                        <th>건강보험</th>
+                                        <th>장기요양보험</th>
+                                        <th>고용보험</th>
+                                        <th>공제액 계</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- 여기에 행이 추가됨 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="button" class="btn btn-primary" onclick="savePayrollData()">저장</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 급여 처리 현황 카드 -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-2">이번 달 처리 현황</h6>
+                            <h3 class="mb-0">32/45</h3>
+                        </div>
+                        <div class="text-primary">
+                            <i class="bi bi-file-earmark-text fs-1"></i>
+                        </div>
+                    </div>
+                    <div class="progress mt-3" style="height: 4px;">
+                        <div class="progress-bar" role="progressbar" style="width: 71%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-2">이메일 발송</h6>
+                            <h3 class="mb-0">28/45</h3>
+                        </div>
+                        <div class="text-success">
+                            <i class="bi bi-envelope-check fs-1"></i>
+                        </div>
+                    </div>
+                    <div class="progress mt-3" style="height: 4px;">
+                        <div class="progress-bar bg-success" role="progressbar" style="width: 62%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 급여 처리 목록 -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover payroll-list">
+                    <thead>
+                        <tr>
+                            <th>지급일</th>
+                            <th>구분</th>
+                            <th>인원수</th>
+                            <th>처리상태</th>
+                            <th>생성일시</th>
+                            <th>수정일시</th>
+                            <th>발송상태</th>
+                            <th>작업</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- 여기에 데이터가 동적으로 추가됩니다 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* 모달 관련 스타일 */
+.modal-fullscreen {
+    padding: 0;
+}
+
+.modal-fullscreen .modal-content {
+    border: 0;
+    border-radius: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 테이블 관련 스타일 */
+#generatePayrollModal .table-container {
+    overflow: hidden;
+    position: relative;
+}
+
+#generatePayrollModal .table-responsive {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow: auto;
+}
+
+#generatePayrollModal .table thead th {
+    position: sticky;
+    top: 0;
+    background: #f8f9fa;
+    z-index: 1;
+}
+
+/* 스크롤바 스타일 */
+#generatePayrollModal .table-responsive::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+#generatePayrollModal .table-responsive::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+#generatePayrollModal .table-responsive::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 4px;
+}
+
+#generatePayrollModal .table-responsive::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
+</style>
+
+<script>
+// 전체 선택 기능
+function toggleAllCheckboxes(source) {
+    const checkboxes = document.querySelectorAll('#generatePayrollModal tbody .form-check-input');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = source.checked;
+    });
+    updateSelectedCount();
+}
+
+// 선택된 항목 수 업데이트
+function updateSelectedCount() {
+    const totalRows = document.querySelectorAll('#generatePayrollModal tbody tr').length;
+    const selectedRows = document.querySelectorAll('#generatePayrollModal tbody .form-check-input:checked').length;
+    document.querySelector('#selectedCount').textContent = `총 ${totalRows}명 | 선택 ${selectedRows}명`;
+}
+
+// 선택된 행 삭제
+function deleteSelectedRows() {
+    const selectedRows = document.querySelectorAll('#generatePayrollModal tbody .form-check-input:checked');
+    selectedRows.forEach(checkbox => {
+        checkbox.closest('tr').remove();
+    });
+    document.querySelector('#checkAll').checked = false;
+    updateSelectedCount();
+}
+
+// 숫자 포맷 함수 추가
+function formatNumber(num) {
+    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+// 쉼표 제거 함수 추가
+function unformatNumber(str) {
+    return parseInt(str.replace(/,/g, '')) || 0;
+}
+
+// 자동 계산 설정
+function setupCalculations(row) {
+    const paymentInputs = row.querySelectorAll('.payment-item');
+    const deductionInputs = row.querySelectorAll('.deduction-item');
+    const totalPaymentInput = row.querySelector('td:nth-child(10) input');
+    const totalDeductionInput = row.querySelector('td:nth-child(17) input');
+    const netAmountInput = row.querySelector('td:nth-child(18) input');
+    
+    // 입력 필드 포맷팅 설정
+    function setupInputFormat(input) {
+        input.addEventListener('focus', function() {
+            this.value = unformatNumber(this.value);
+        });
+        
+        input.addEventListener('blur', function() {
+            this.value = formatNumber(unformatNumber(this.value));
+        });
+    }
+    
+    // 모든 금액 입력 필드에 포맷팅 설정
+    paymentInputs.forEach(setupInputFormat);
+    deductionInputs.forEach(setupInputFormat);
+    
+    // 지급액 계산
+    function calculateTotalPayment() {
+        let total = 0;
+        paymentInputs.forEach(input => {
+            total += unformatNumber(input.value);
+        });
+        totalPaymentInput.value = formatNumber(total);
+        calculateNetAmount();
+    }
+    
+    // 공제액 계산
+    function calculateTotalDeduction() {
+        let total = 0;
+        deductionInputs.forEach(input => {
+            total += unformatNumber(input.value);
+        });
+        totalDeductionInput.value = formatNumber(total);
+        calculateNetAmount();
+    }
+    
+    // 실수령액 계산
+    function calculateNetAmount() {
+        const totalPayment = unformatNumber(totalPaymentInput.value);
+        const totalDeduction = unformatNumber(totalDeductionInput.value);
+        netAmountInput.value = formatNumber(totalPayment - totalDeduction);
+    }
+    
+    // 이벤트 리스너 설정
+    paymentInputs.forEach(input => {
+        input.addEventListener('input', calculateTotalPayment);
+    });
+    
+    deductionInputs.forEach(input => {
+        input.addEventListener('input', calculateTotalDeduction);
+    });
+}
+
+// 행 추가 함수 수정
+function addEmployeeRow() {
+    const table = document.querySelector('#generatePayrollModal table tbody');
+    const newRow = document.createElement('tr');
+    
+    newRow.innerHTML = `
+        <td>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" onchange="updateSelectedCount()">
+            </div>
+        </td>
+        <td><input type="text" class="form-control form-control-sm"></td>
+        <td><input type="text" class="form-control form-control-sm"></td>
+        <td><input type="text" class="form-control form-control-sm"></td>
+        <td><input type="text" class="form-control form-control-sm"></td>
+        
+        <!-- 지급 항목 -->
+        <td><input type="text" class="form-control form-control-sm text-end payment-item" value="0"></td>
+        <td><input type="text" class="form-control form-control-sm text-end payment-item" value="0"></td>
+        <td><input type="text" class="form-control form-control-sm text-end payment-item" value="0"></td>
+        <td><input type="text" class="form-control form-control-sm text-end payment-item" value="0"></td>
+        <td><input type="text" class="form-control form-control-sm text-end" value="0" readonly></td>
+        
+        <!-- 공제 항목 -->
+        <td><input type="text" class="form-control form-control-sm text-end deduction-item" value="0"></td>
+        <td><input type="text" class="form-control form-control-sm text-end deduction-item" value="0"></td>
+        <td><input type="text" class="form-control form-control-sm text-end deduction-item" value="0"></td>
+        <td><input type="text" class="form-control form-control-sm text-end deduction-item" value="0"></td>
+        <td><input type="text" class="form-control form-control-sm text-end deduction-item" value="0"></td>
+        <td><input type="text" class="form-control form-control-sm text-end deduction-item" value="0"></td>
+        <td><input type="text" class="form-control form-control-sm text-end" value="0" readonly></td>
+        
+        <!-- 실수령액 -->
+        <td><input type="text" class="form-control form-control-sm text-end" value="0" readonly></td>
+    `;
+    
+    table.appendChild(newRow);
+    updateSelectedCount();
+    setupCalculations(newRow);
+}
+
+// 급여 데이터 저장
+async function savePayrollData() {
+    // 기본 정보 가져오기
+    const payYearMonth = document.querySelector('#generatePayrollModal input[type="month"]').value;
+    const paymentDate = document.querySelector('#generatePayrollModal input[type="date"]').value;
+    
+    if (!payYearMonth || !paymentDate) {
+        alert('귀속연월과 지급일을 입력해주세요.');
+        return;
+    }
+    
+    // 직원 데이터 수집
+    const employees = [];
+    const rows = document.querySelectorAll('#generatePayrollModal tbody tr');
+    
+    rows.forEach(row => {
+        const inputs = row.querySelectorAll('input');
+        const employee = {
+            employee_id: inputs[1].value,
+            employee_name: inputs[2].value,
+            department: inputs[3].value,
+            position: inputs[4].value,
+            base_salary: parseInt(inputs[5].value) || 0,
+            position_allowance: parseInt(inputs[6].value) || 0,
+            overtime_pay: parseInt(inputs[7].value) || 0,
+            meal_allowance: parseInt(inputs[8].value) || 0,
+            income_tax: parseInt(inputs[9].value) || 0,
+            national_pension: parseInt(inputs[10].value) || 0,
+            health_insurance: parseInt(inputs[11].value) || 0,
+            employment_insurance: parseInt(inputs[12].value) || 0
+        };
+        
+        if (employee.employee_id && employee.employee_name) {
+            employees.push(employee);
+        }
+    });
+    
+    if (employees.length === 0) {
+        alert('저장할 데이터가 없습니다.');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/payroll/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                pay_year_month: payYearMonth,
+                payment_date: paymentDate,
+                employees: employees
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(result.message);
+            location.reload();  // 페이지 새로고침
+        } else {
+            let errorMessage = result.message;
+            if (result.errors) {
+                errorMessage += '\n\n상세 오류:\n' + result.errors.join('\n');
+            }
+            alert(errorMessage);
+        }
+    } catch (error) {
+        alert('저장 중 오류가 발생했습니다: ' + error.message);
+    }
+}
+
+// 급여 데이터 목록 조회
+async function loadPayrollList() {
+    try {
+        const response = await fetch('/payroll/list');
+        const result = await response.json();
+        
+        if (result.success) {
+            const tbody = document.querySelector('.payroll-list tbody');
+            tbody.innerHTML = '';
+            
+            result.data.forEach(record => {
+                const statusBadge = record.status === '완료' 
+                    ? '<span class="badge bg-success fs-6 fw-normal">완료</span>'
+                    : '<span class="badge bg-warning fs-6 fw-normal">임시저장</span>';
+                
+                const emailBadge = record.status === '완료'
+                    ? '<span class="badge bg-primary fs-6 fw-normal">발송완료</span>'
+                    : '<span class="badge bg-secondary fs-6 fw-normal">미발송</span>';
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${record.payment_date}</td>
+                    <td>${record.pay_year_month} 급여</td>
+                    <td>${record.employee_count}명</td>
+                    <td>${statusBadge}</td>
+                    <td>${record.created_at}</td>
+                    <td>${record.updated_at || '-'}</td>
+                    <td>${emailBadge}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="viewPayrollDetail(${record.id})">
+                            <i class="bi bi-search"></i>
+                        </button>
+                        ${record.status !== '완료' ? `
+                            <button class="btn btn-sm btn-outline-primary" onclick="completePayroll(${record.id})">
+                                <i class="bi bi-check-lg"></i>
+                            </button>
+                        ` : ''}
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+    } catch (error) {
+        alert('데이터 조회 중 오류가 발생했습니다: ' + error.message);
+    }
+}
+
+// 급여 상세 데이터 조회
+async function viewPayrollDetail(recordId) {
+    try {
+        const response = await fetch(`/payroll/detail/${recordId}`);
+        const result = await response.json();
+        
+        if (result.success) {
+            const modal = document.querySelector('#generatePayrollModal');
+            const isCompleted = result.data.record.status === '완료';
+            
+            // 기본 정보 설정
+            const monthInput = modal.querySelector('input[type="month"]');
+            const dateInput = modal.querySelector('input[type="date"]');
+            
+            monthInput.value = result.data.record.pay_year_month;
+            dateInput.value = result.data.record.payment_date;
+            
+            // 완료 상태면 입력 필드 비활성화
+            monthInput.readOnly = isCompleted;
+            dateInput.readOnly = isCompleted;
+            
+            // 테이블 초기화
+            const tbody = modal.querySelector('tbody');
+            tbody.innerHTML = '';
+            
+            // 직원 데이터 추가
+            result.data.details.forEach(detail => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" onchange="updateSelectedCount()" ${isCompleted ? 'disabled' : ''}>
+                        </div>
+                    </td>
+                    <td><input type="text" class="form-control form-control-sm" value="${detail.employee_id}" readonly></td>
+                    <td><input type="text" class="form-control form-control-sm" value="${detail.employee_name}" readonly></td>
+                    <td><input type="text" class="form-control form-control-sm" value="${detail.department}" ${isCompleted ? 'readonly' : ''}></td>
+                    <td><input type="text" class="form-control form-control-sm" value="${detail.position}" ${isCompleted ? 'readonly' : ''}></td>
+                    <td><input type="number" class="form-control form-control-sm text-end" value="${detail.base_salary}" ${isCompleted ? 'readonly' : ''}></td>
+                    <td><input type="number" class="form-control form-control-sm text-end" value="${detail.position_allowance}" ${isCompleted ? 'readonly' : ''}></td>
+                    <td><input type="number" class="form-control form-control-sm text-end" value="${detail.overtime_pay}" ${isCompleted ? 'readonly' : ''}></td>
+                    <td><input type="number" class="form-control form-control-sm text-end" value="${detail.meal_allowance}" ${isCompleted ? 'readonly' : ''}></td>
+                    <td><input type="number" class="form-control form-control-sm text-end" value="${detail.income_tax}" ${isCompleted ? 'readonly' : ''}></td>
+                    <td><input type="number" class="form-control form-control-sm text-end" value="${detail.national_pension}" ${isCompleted ? 'readonly' : ''}></td>
+                    <td><input type="number" class="form-control form-control-sm text-end" value="${detail.health_insurance}" ${isCompleted ? 'readonly' : ''}></td>
+                    <td><input type="number" class="form-control form-control-sm text-end" value="${detail.employment_insurance}" ${isCompleted ? 'readonly' : ''}></td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            // 직원 수 업데이트
+            const totalCount = result.data.details.length;
+            document.querySelector('#selectedCount').textContent = `총 ${totalCount}명 | 선택 0명`;
+            
+            // 상태에 따라 버튼 표시
+            const footerButtons = modal.querySelector('.modal-footer');
+            footerButtons.innerHTML = isCompleted ? `
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+            ` : `
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-primary" onclick="updatePayrollData(${recordId})">수정</button>
+                <button type="button" class="btn btn-success" onclick="completePayroll(${recordId})">완료</button>
+                <button type="button" class="btn btn-primary" onclick="savePayrollData()" style="display: none;">저장</button>
+            `;
+            
+            // 모달 표시
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+        }
+    } catch (error) {
+        alert('데이터 조회 중 오류가 발생했습니다: ' + error.message);
+    }
+}
+
+// 급여 데이터 수정
+async function updatePayrollData(recordId) {
+    try {
+        const modal = document.querySelector('#generatePayrollModal');
+        const paymentDate = modal.querySelector('input[type="date"]').value;
+        
+        // 직원 데이터 수집
+        const employees = [];
+        const rows = modal.querySelectorAll('tbody tr');
+        
+        rows.forEach(row => {
+            const inputs = row.querySelectorAll('input');
+            const employee = {
+                employee_id: inputs[1].value,
+                employee_name: inputs[2].value,
+                department: inputs[3].value,
+                position: inputs[4].value,
+                base_salary: parseInt(inputs[5].value) || 0,
+                position_allowance: parseInt(inputs[6].value) || 0,
+                overtime_pay: parseInt(inputs[7].value) || 0,
+                meal_allowance: parseInt(inputs[8].value) || 0,
+                income_tax: parseInt(inputs[9].value) || 0,
+                national_pension: parseInt(inputs[10].value) || 0,
+                health_insurance: parseInt(inputs[11].value) || 0,
+                employment_insurance: parseInt(inputs[12].value) || 0
+            };
+            employees.push(employee);
+        });
+        
+        const response = await fetch(`/payroll/update/${recordId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                payment_date: paymentDate,
+                employees: employees
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(result.message);
+            location.reload();
+        } else {
+            alert('수정 실패: ' + result.message);
+        }
+    } catch (error) {
+        alert('수정 중 오류가 발생했습니다: ' + error.message);
+    }
+}
+
+// 급여 처리 완료
+async function completePayroll(recordId) {
+    if (!confirm('급여 처리를 완료하시겠습니까?\n완료 후에는 수정할 수 없습니다.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/payroll/status/${recordId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                status: '완료'
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(result.message);
+            location.reload();
+        } else {
+            alert('상태 변경 실패: ' + result.message);
+        }
+    } catch (error) {
+        alert('상태 변경 중 오류가 발생했습니다: ' + error.message);
+    }
+}
+
+// 페이지 로드 시 데이터 조회
+document.addEventListener('DOMContentLoaded', () => {
+    loadPayrollList();
+});
+
+function sendPayrollEmail(employeeId, yearMonth, pdfPath) {
+    const data = {
+        employee_id: employeeId,
+        year_month: yearMonth,
+        pdf_path: pdfPath
+    };
+
+    fetch('/payroll/send_email', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert('이메일 발송 실패: ' + data.error);
+        } else {
+            alert('이메일이 성공적으로 발송되었습니다.');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('이메일 발송 중 오류가 발생했습니다.');
+    });
+}
+
+// 이메일 발송 버튼 클릭 이벤트 핸들러
+document.getElementById('sendEmailBtn').addEventListener('click', function() {
+    const employeeId = document.getElementById('employeeId').value;
+    const yearMonth = document.getElementById('yearMonth').value;
+    const pdfPath = '45_박희창_202411(20241125).pdf';  // PDF 파일 경로
+    
+    if (!employeeId || !yearMonth) {
+        alert('직원 ID와 귀속연월을 선택해주세요.');
+        return;
+    }
+    
+    sendPayrollEmail(employeeId, yearMonth, pdfPath);
+});
+</script>
+{% endblock %} 

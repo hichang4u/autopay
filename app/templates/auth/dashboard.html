@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-wrapper">
+    <div class="dashboard-container">
+        <div class="row g-4">
+            <!-- 급여 명세서 생성 -->
+            <div class="col-md-6">
+                <div class="feature-card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="icon-wrapper bg-primary-soft me-3">
+                                <i class="bi bi-file-earmark-text"></i>
+                            </div>
+                            <h5 class="card-title mb-0">급여 명세서 생성</h5>
+                        </div>
+                        <p class="card-text text-muted mb-4">개별 급여 명세서를 생성합니다.</p>
+                        <div class="d-grid gap-2">
+                            <a href="{{ url_for('payroll.generate') }}" class="btn btn-primary">
+                                <i class="bi bi-plus-lg me-1"></i>명세서 생성
+                            </a>
+                            <a href="#" class="btn btn-outline-secondary">생성 이력 보기</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 이메일 발송 -->
+            <div class="col-md-6">
+                <div class="feature-card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="icon-wrapper bg-success-soft me-3">
+                                <i class="bi bi-envelope"></i>
+                            </div>
+                            <h5 class="card-title mb-0">이메일 발송</h5>
+                        </div>
+                        <p class="card-text text-muted mb-4">생성된 급여 명세서를 이메일로 발송합니다.</p>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-primary">
+                                <i class="bi bi-send me-1"></i>이메일 발송
+                            </button>
+                            <button class="btn btn-outline-secondary">발송 이력 보기</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 직원 관리 -->
+            <div class="col-md-6">
+                <div class="feature-card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="icon-wrapper bg-info-soft me-3">
+                                <i class="bi bi-people"></i>
+                            </div>
+                            <h5 class="card-title mb-0">직원 관리</h5>
+                        </div>
+                        <p class="card-text text-muted mb-4">직원 정보를 관리합니다.</p>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-primary">
+                                <i class="bi bi-list-ul me-1"></i>직원 목록
+                            </button>
+                            <button class="btn btn-outline-secondary">신규 직원 등록</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 설정 -->
+            <div class="col-md-6">
+                <div class="feature-card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="icon-wrapper bg-warning-soft me-3">
+                                <i class="bi bi-gear"></i>
+                            </div>
+                            <h5 class="card-title mb-0">시스템 설정</h5>
+                        </div>
+                        <p class="card-text text-muted mb-4">시스템 설정을 관리합니다.</p>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-primary">
+                                <i class="bi bi-envelope-gear me-1"></i>이메일 설정
+                            </button>
+                            <button class="btn btn-outline-secondary">기본 설정</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 최근 활동 -->
+        <div class="feature-card mt-4">
+            <div class="card-body">
+                <h5 class="card-title mb-4">최근 활동</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>일시</th>
+                                <th>활동</th>
+                                <th>상태</th>
+                                <th>작업</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>2024-12-20 09:00</td>
+                                <td>12월 급여명세서 생성</td>
+                                <td><span class="badge bg-success">완료</span></td>
+                                <td>
+                                    <button class="btn btn-sm btn-light">
+                                        <i class="bi bi-download"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-light">
+                                        <i class="bi bi-envelope"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+    .dashboard-wrapper {
+        min-height: calc(100vh - 60px);
+        background-color: #f8f9fa;
+        padding: 1.5rem;
+    }
+
+    .dashboard-container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .feature-card {
+        background: white;
+        border-radius: 16px;
+        border: none;
+        box-shadow: 0 1px 3px rgba(0,0,0,.1);
+        height: 100%;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .feature-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 6px rgba(0,0,0,.1);
+    }
+
+    .card-body {
+        padding: 1.5rem;
+    }
+
+    .icon-wrapper {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+
+    .bg-primary-soft { background-color: rgba(0,82,204,.1); color: #0052CC; }
+    .bg-success-soft { background-color: rgba(25,135,84,.1); color: #198754; }
+    .bg-info-soft { background-color: rgba(13,202,240,.1); color: #0dcaf0; }
+    .bg-warning-soft { background-color: rgba(255,193,7,.1); color: #ffc107; }
+
+    .card-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #333;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        font-weight: 500;
+    }
+
+    .btn-light {
+        background-color: #f8f9fa;
+        border-color: #e9ecef;
+    }
+
+    .table th {
+        font-weight: 500;
+        color: #6c757d;
+        border-bottom-width: 1px;
+    }
+
+    @media (max-width: 768px) {
+        .dashboard-wrapper {
+            padding: 1rem;
+        }
+
+        .card-body {
+            padding: 1.25rem;
+        }
+    }
+</style>
+{% endblock styles %}

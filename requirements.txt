@@ -1,0 +1,16 @@
+flask
+flask-sqlalchemy
+flask-migrate
+flask-login
+flask-wtf
+gunicorn
+pandas
+openpyxl
+xlsxwriter
+PyPDF2
+python-docx
+email-validator
+python-dotenv
+pywin32
+pytest
+pytz

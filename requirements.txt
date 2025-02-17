@@ -22,6 +22,8 @@ pdfkit==1.0.0  # requires wkhtmltopdf: https://wkhtmltopdf.org/downloads.html
 # 유틸리티
 email-validator
 python-dotenv
-pywin32
 pytest
 pytz
+
+# Windows 전용 패키지
+pywin32; sys_platform == 'win32'

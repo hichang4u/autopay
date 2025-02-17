@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app, send_file
 from flask_login import login_required, current_user
 from app import db
-from app.models import PayrollRecord, PayrollDetail, Employee
+from app.models import PayrollRecord, PayrollDetail, Employee, User
 from datetime import datetime
 import logging
 import re
@@ -32,7 +32,7 @@ def validate_payroll_data(data):
     required_fields = ['pay_year_month', 'payment_date', 'employees']
     for field in required_fields:
         if field not in data:
-            errors.append(f"필�� 필드 '{field}'가 누락되었습니다.")
+            errors.append(f"필수 필드 '{field}'가 누락되었습니다.")
     
     if not errors:
         # 날짜 형식 검사
@@ -163,7 +163,7 @@ def save_payroll():
         
     except Exception as e:
         db.session.rollback()
-        logger.error(f"급여 데이터 저장 실��: {str(e)}")
+        logger.error(f"급여 데이터 저장 실패: {str(e)}")
         return jsonify({
             'success': False,
             'message': f'저장 중 오류가 발생했습니다: {str(e)}'
@@ -200,18 +200,92 @@ def generate_manual():
 def send_email():
     try:
         data = request.get_json()
+        record_id = data.get('record_id')
+        employee_id = data.get('employee_id')
         
-        # TODO: 이메일 발송 로직 구현
-        # 1. 수신자 정보 확인
-        # 2. 이메일 템플릿 로드
-        # 3. PDF 첨부
-        # 4. 이메일 발송
+        if not record_id or not employee_id:
+            return jsonify({
+                'success': False,
+                'message': '필수 파라미터가 누락되었습니다.'
+            }), 400
+            
+        # 급여 기록 조회
+        record = PayrollRecord.query.get_or_404(record_id)
+        detail = PayrollDetail.query.filter_by(record_id=record_id, employee_id=employee_id).first()
         
+        if not detail:
+            return jsonify({
+                'success': False,
+                'message': '해당 직원의 급여 데이터를 찾을 수 없습니다.'
+            }), 404
+            
+        # 직원 정보 조회
+        employee = Employee.query.filter_by(employee_id=employee_id).first()
+        if not employee or not employee.email:
+            return jsonify({
+                'success': False,
+                'message': '직원의 이메일 정보가 없습니다.'
+            }), 400
+            
+        # 담당자 정보 가져오기
+        created_by_user = User.query.filter_by(username=record.created_by).first()
+        if not created_by_user or not created_by_user.email:
+            return jsonify({
+                'success': False,
+                'message': '담당자의 이메일 정보가 없습니다.'
+            }), 400
+            
+        # PDF 파일 경로
+        payment_date = record.payment_date.strftime('%Y%m%d')
+        pdf_filename = f"{detail.employee_id}_{detail.employee_name}_{record.pay_year_month}({payment_date}).pdf"
+        pdf_dir = os.path.join(current_app.static_folder, 'pdfs', payment_date)
+        pdf_path = os.path.join(pdf_dir, pdf_filename)
+        
+        if not os.path.exists(pdf_path):
+            return jsonify({
+                'success': False,
+                'message': '급여명세서 PDF 파일이 없습니다.'
+            }), 404
+            
+        # 이메일 메시지 생성
+        msg = MIMEMultipart()
+        msg['From'] = created_by_user.email  # 담당자 이메일로 변경
+        msg['To'] = employee.email
+        msg['Date'] = formatdate(localtime=True)
+        msg['Subject'] = f"{record.pay_year_month} 급여명세서"
+        
+        # 이메일 본문
+        body = f"""
+안녕하세요, {detail.employee_name}님
+
+{record.pay_year_month} 귀속 급여명세서를 첨부하여 보내드립니다.
+감사합니다.
+
+{created_by_user.name}
+{created_by_user.phone}
+(주)우리소프트
+        """
+        msg.attach(MIMEText(body, 'plain', 'utf-8'))
+        
+        # PDF 첨부
+        with open(pdf_path, 'rb') as f:
+            pdf = MIMEApplication(f.read(), _subtype='pdf')
+            pdf.add_header('Content-Disposition', 'attachment', filename=pdf_filename)
+            msg.attach(pdf)
+            
+        # 이메일 발송
+        with smtplib.SMTP(current_app.config['MAIL_SERVER'], current_app.config['MAIL_PORT']) as server:
+            server.starttls()
+            server.login(current_app.config['MAIL_USERNAME'], current_app.config['MAIL_PASSWORD'])
+            server.send_message(msg)
+            
         return jsonify({
             'success': True,
             'message': '이메일이 성공적으로 발송되었습니다.'
         })
+        
     except Exception as e:
+        logger.error(f"이메일 발송 실패: {str(e)}")
         return jsonify({
             'success': False,
             'message': f'이메일 발송 중 오류가 발생했습니다: {str(e)}'
@@ -239,7 +313,7 @@ def parse_excel():
         df = pd.read_excel(file)
         data = df.iloc[0].to_dict()
         
-        # NaN 값과 날짜 처리
+        # NaN 값 처리
         for key, value in data.items():
             if pd.isna(value):
                 data[key] = ''
@@ -249,7 +323,7 @@ def parse_excel():
         return jsonify(data)
     except Exception as e:
         return jsonify({
-            'error': f'파일 처리 중 오���가 발생했습니다: {str(e)}'
+            'error': f'파일 처리 중 오류가 발생했습니다: {str(e)}'
         }), 500
 
 # 급여 데이터 조회 API
@@ -523,11 +597,6 @@ def delete_payroll(record_id):
             'message': f'삭제 중 오류가 발생했습니다: {str(e)}'
         }), 500
 
-# 한글 폰트 등록
-pdfmetrics.registerFont(TTFont('Pretendard', 'app/static/fonts/Pretendard-Regular.ttf'))
-pdfmetrics.registerFont(TTFont('Pretendard-Bold', 'app/static/fonts/Pretendard-Bold.ttf'))
-pdfmetrics.registerFont(TTFont('Pretendard-Medium', 'app/static/fonts/Pretendard-Medium.ttf'))
-
 @payroll.route('/generate-pdf/<int:record_id>', methods=['POST'])
 def generate_pdf(record_id):
     try:
@@ -550,40 +619,32 @@ def generate_pdf(record_id):
 
         generated_count = 0
         
-        # 폰트 파일 경로
-        font_dir = os.path.join(current_app.static_folder, 'fonts')
-        font_files = {
-            'regular': os.path.abspath(os.path.join(font_dir, 'Pretendard-Regular.ttf')),
-            'bold': os.path.abspath(os.path.join(font_dir, 'Pretendard-Bold.ttf'))
-        }
-        
-        # CSS 스타일에 폰트 경로 추가
-        font_css = f"""
-        @font-face {{
-            font-family: 'Pretendard';
-            src: local('Pretendard');
-            font-weight: normal;
-            font-style: normal;
-        }}
-        @font-face {{
-            font-family: 'Pretendard';
-            src: local('Pretendard');
-            font-weight: bold;
-            font-style: normal;
-        }}
-        """
-        
         # 각 직원별로 PDF 생성
         for detail in details:
             # PDF 파일명 생성 (사번_이름_귀속년월(지급일))
             pdf_filename = f"{detail.employee_id}_{detail.employee_name}_{record.pay_year_month}({payment_date}).pdf"
             pdf_path = os.path.join(pdf_dir, pdf_filename)
             
+            # 담당자 정보 가져오기
+            created_by_user = User.query.filter_by(username=record.created_by).first()
+            if not created_by_user:
+                created_by_name = record.created_by
+                created_by_phone = '-'
+                created_by_email = '-'
+            else:
+                created_by_name = created_by_user.name if created_by_user.name else created_by_user.username
+                created_by_phone = created_by_user.phone if created_by_user.phone else '-'
+                created_by_email = created_by_user.email if created_by_user.email else '-'
+            
+            logger.info(f"담당자 정보: {created_by_name}, {created_by_phone}, {created_by_email}")  # 로그 추가
+            
             # HTML 템플릿 렌더링
             html = render_template('payroll/payroll_pdf.html',
                                 record=record,
                                 detail=detail,
-                                font_css=font_css)
+                                created_by_name=created_by_name,
+                                created_by_phone=created_by_phone,
+                                created_by_email=created_by_email)
             
             # 임시 HTML 파일 생성 (현재 작업 디렉토리에)
             temp_html = f'temp_{detail.employee_id}.html'

@@ -19,12 +19,19 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.pytest_cache/
+.coverage
+coverage.xml
+*.cover
+.hypothesis/
 
 # Virtual Environment
 venv/
 env/
 ENV/
 .env
+.venv/
+.python-version
 
 # IDE
 .idea/
@@ -34,11 +41,14 @@ ENV/
 .project
 .pydevproject
 .settings/
+*.sublime-workspace
+*.sublime-project
 
 # Database
 *.db
 *.sqlite3
 *.sqlite
+*.db-journal
 
 # Logs
 *.log
@@ -49,6 +59,8 @@ log/
 .DS_Store
 Thumbs.db
 desktop.ini
+$RECYCLE.BIN/
+*.lnk
 
 # Temporary files
 *.bak
@@ -57,24 +69,63 @@ desktop.ini
 .coverage
 htmlcov/
 temp_*.html
+.~*
+~$*
 
 # Media and Static files
 media/
 static/temp/
 static/pdfs/
 uploads/
+app/static/temp/
+app/static/pdfs/
+app/static/uploads/
 
 # Local development settings
 local_settings.py
+instance/
 
 # Docker
 .docker/
 docker-compose.override.yml
+*.env.local
 
 # Package manager
 pip-log.txt
 pip-delete-this-directory.txt
+.python-version
 
 # PDF files and directories
 app/static/pdfs/
-*.pdf 
+*.pdf
+
+# Excel files
+*.xls
+*.xlsx
+*.xlsm
+*.xlsb
+
+# Backup files
+*.backup
+*_backup
+*.old
+
+# Test files
+.tox/
+.nox/
+.coverage.*
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+htmlcov/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb 

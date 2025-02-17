@@ -34,8 +34,10 @@ class Code(db.Model):
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(128))
-    email = db.Column(db.String(120), unique=True)
+    name = db.Column(db.String(50))
+    phone = db.Column(db.String(20))
     is_active = db.Column(db.Boolean, default=True)
     is_admin = db.Column(db.Boolean, default=False)  # 관리자 권한
     last_login = db.Column(db.DateTime)
@@ -55,6 +57,16 @@ class User(UserMixin, db.Model):
         if self.locked_until and self.locked_until > datetime.now():
             return True
         return False
+        
+    @property
+    def is_authenticated(self):
+        return True if self.is_active and not self.is_locked() else False
+        
+    def get_id(self):
+        return str(self.id)
+        
+    def __repr__(self):
+        return f'<User {self.username}>'
 
 @login_manager.user_loader
 def load_user(id):

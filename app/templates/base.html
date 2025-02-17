@@ -41,7 +41,7 @@
 </head>
 <body>
     <div class="wrapper">
-        {% if current_user.is_authenticated and not request.endpoint == 'auth.login' %}
+        {% if current_user.is_authenticated and request.endpoint != 'auth.login' %}
         <!-- 사이드바 -->
         <nav id="sidebar" class="sidebar">
             <div class="sidebar-header">

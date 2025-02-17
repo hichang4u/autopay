@@ -4,36 +4,114 @@
     <meta charset="UTF-8">
     <title>급여명세서</title>
     <style>
+        @font-face {
+            font-family: 'Pretendard';
+            src: url('/static/fonts/Pretendard-Light.ttf') format('truetype');
+            font-weight: 300;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'Pretendard';
+            src: url('/static/fonts/Pretendard-Regular.ttf') format('truetype');
+            font-weight: 400;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'Pretendard';
+            src: url('/static/fonts/Pretendard-Medium.ttf') format('truetype');
+            font-weight: 500;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'Pretendard';
+            src: url('/static/fonts/Pretendard-SemiBold.ttf') format('truetype');
+            font-weight: 600;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'Pretendard';
+            src: url('/static/fonts/Pretendard-Bold.ttf') format('truetype');
+            font-weight: 700;
+            font-style: normal;
+        }
+        @media print {
+            body {
+                background-color: white !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            .container {
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 20px !important;
+                box-shadow: none !important;
+                background-color: white !important;
+            }
+            .watermark {
+                opacity: 0.03 !important;
+            }
+        }
         * { margin: 0; padding: 0; text-indent: 0; box-sizing: border-box; }
         body {
             background-color: white;
-            font-family: 'Malgun Gothic', sans-serif;
+            font-family: 'Pretendard', sans-serif;
             color: #2c3e50;
         }
         .container { 
             width: 210mm; 
-            min-height: 297mm;
             margin: 0 auto; 
-            padding: 15mm;
+            padding: 20px;
             background-color: white;
             position: relative;
         }
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            width: 400px;
+            height: auto;
+            opacity: 0.05;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .document-info {
+            position: absolute;
+            top: 20px;
+            right: 40px;
+            text-align: right;
+            font-size: 9pt;
+            color: #666;
+        }
+        .qr-placeholder {
+            position: absolute;
+            top: 20px;
+            right: 40px;
+            width: 60px;
+            height: 60px;
+            background-color: #f8fafc;
+            border: 1px solid #e3e8ed;
+            border-radius: 4px;
+        }
         h1 { 
             color: #000; 
-            font-family: 'Malgun Gothic', sans-serif;
+            font-family: 'Pretendard', sans-serif; 
             font-style: normal; 
             font-weight: 700; 
-            font-size: 18pt;
+            font-size: 22pt;
             text-align: center;
-            margin-bottom: 25px;
-            padding-bottom: 15px;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
             border-bottom: 3px solid #000;
         }
+        h1::after {
+            display: none;
+        }
         .info-section { 
-            margin: 15px 0;
-            padding: 15px;
+            margin: 20px 0;
+            padding: 20px;
             border: 1.5px solid #000;
-            font-size: 9pt;
+            font-size: 9.5pt;
             background-color: #f8fafc !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
@@ -46,14 +124,14 @@
         .detail-table, .calculation-table {
             width: 100%;
             border-collapse: collapse;
-            margin: 15px 0;
-            font-size: 9pt;
+            margin: 25px 0;
+            font-size: 9.5pt;
             border: 2px solid #000;
         }
         .detail-table th, .calculation-table th {
             background-color: #eef2f7 !important;
             border: 1.5px solid #000;
-            padding: 8px;
+            padding: 12px;
             font-weight: 600;
             color: #000;
             -webkit-print-color-adjust: exact;
@@ -61,14 +139,21 @@
         }
         .detail-table td, .calculation-table td {
             border: 1.5px solid #000;
-            padding: 8px;
+            padding: 10px 12px;
             background-color: white;
         }
         .detail-table th[colspan="4"], .calculation-table th[colspan="3"] {
             background-color: #e2e8f0 !important;
-            font-size: 11pt;
-            padding: 10px;
+            font-size: 12pt;
+            padding: 15px;
             font-weight: 700;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .detail-table th[colspan="2"] {
+            background-color: #eef2f7 !important;
+            font-size: 11pt;
+            padding: 12px;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
         }
@@ -83,27 +168,42 @@
         .total-amount {
             font-weight: 700;
             color: #000;
-            font-size: 10pt;
+            font-size: 11pt;
+        }
+        .signature-section {
+            margin-top: 40px;
+            text-align: right;
+            padding: 20px;
+            border-top: 1px solid #e3e8ed;
+        }
+        .signature-line {
+            display: inline-block;
+            width: 150px;
+            border-bottom: 1px solid #666;
+            margin-left: 20px;
+            text-align: center;
+            padding-bottom: 5px;
         }
         .company-info {
-            margin-top: 20px;
-            padding-top: 15px;
+            margin-top: 40px;
+            padding-top: 20px;
             border-top: 1px solid #e3e8ed;
             text-align: center;
-            font-size: 8.5pt;
+            font-size: 9pt;
             color: #666;
+        }
+        .contact-info {
+            margin-top: 10px;
+            font-size: 8.5pt;
+            color: #888;
         }
         .text-right { 
             text-align: right;
             font-size: 10pt;
             font-weight: 500;
         }
-        table.no-border td {
-            padding: 3px 8px;
-            line-height: 1.3;
-            border: none;
-        }
-        .gray-bg {
+        .text-center { text-align: center; }
+        .gray-bg { 
             background-color: #e2e8f0 !important;
             font-weight: 700;
             font-size: 11pt;
@@ -111,16 +211,27 @@
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
         }
-        .contact-info {
-            margin-top: 10px;
-            font-size: 8pt;
-            color: #888;
+        .footer { 
+            margin-top: 30px;
+            text-align: center;
+            font-weight: 500;
+            color: #34495e;
+            padding-top: 20px;
+            border-top: 1px solid #e3e8ed;
+        }
+        table.no-border td {
+            padding: 3px 8px;
+            line-height: 1.3;
+        }
+        .reference-info {
+            color: #34495e;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>{{ record.pay_year_month[:4] }}년 {{ record.pay_year_month[5:] }}월분 급여명세서</h1>
+        <img src="{{ url_for('static', filename='img/wrsoft-vertical-logo.svg') }}" class="watermark" alt="우리소프트 로고">
+        <h1>2024년 11월분 급여명세서</h1>
         
         <div class="info-section">
             <table class="no-border" style="width: 100%; border-collapse: collapse;">
@@ -135,13 +246,13 @@
                         <span class="info-label">입 사 일 :</span>
                     </td>
                     <td style="width: 16.66%;">
-                        <span>{{ detail.hire_date.strftime('%Y.%m.%d') if detail.hire_date else '' }}</span>
+                        <span>2019.04.01</span>
                     </td>
                     <td style="width: 16.66%; text-align: right;">
                         <span class="info-label">성 명 :</span>
                     </td>
                     <td style="width: 16.66%;">
-                        <span>{{ detail.employee_name }}</span>
+                        <span>박희창</span>
                     </td>
                 </tr>
                 <tr>
@@ -149,19 +260,19 @@
                         <span class="info-label">생년월일 :</span>
                     </td>
                     <td style="width: 16.66%;">
-                        <span>{{ detail.birth_date.strftime('%y%m%d') if detail.birth_date else '' }}</span>
+                        <span>740311</span>
                     </td>
                     <td style="width: 16.66%; text-align: right;">
                         <span class="info-label">사 번 :</span>
                     </td>
                     <td style="width: 16.66%;">
-                        <span>{{ detail.employee_id }}</span>
+                        <span>45</span>
                     </td>
                     <td style="width: 16.66%; text-align: right;">
                         <span class="info-label">직 위 :</span>
                     </td>
                     <td style="width: 16.66%;">
-                        <span>{{ detail.position }}</span>
+                        <span></span>
                     </td>
                 </tr>
                 <tr>
@@ -169,13 +280,13 @@
                         <span class="info-label">지 급 일 :</span>
                     </td>
                     <td style="width: 16.66%;">
-                        <span>{{ record.payment_date.strftime('%Y.%m.%d') }}</span>
+                        <span>2024.11.25</span>
                     </td>
                     <td style="width: 16.66%; text-align: right;">
                         <span class="info-label">부 서 :</span>
                     </td>
                     <td style="width: 16.66%;">
-                        <span>{{ detail.department }}</span>
+                        <span></span>
                     </td>
                     <td style="width: 16.66%;"></td>
                     <td style="width: 16.66%;"></td>
@@ -199,56 +310,56 @@
             </tr>
             <tr>
                 <td>기본급</td>
-                <td class="text-right">{{ "{:,}".format(detail.base_salary) if detail.base_salary else 0 }}</td>
+                <td class="text-right">6,300,000</td>
                 <td>국민연금</td>
-                <td class="text-right">{{ "{:,}".format(detail.national_pension) if detail.national_pension else 0 }}</td>
+                <td class="text-right">277,650</td>
             </tr>
             <tr>
                 <td>직책수당</td>
-                <td class="text-right">{{ "{:,}".format(detail.position_allowance) if detail.position_allowance else 0 }}</td>
+                <td class="text-right">400,000</td>
                 <td>건강보험</td>
-                <td class="text-right">{{ "{:,}".format(detail.health_insurance) if detail.health_insurance else 0 }}</td>
+                <td class="text-right">237,510</td>
             </tr>
             <tr>
-                <td>식���</td>
-                <td class="text-right">{{ "{:,}".format(detail.meal_allowance) if detail.meal_allowance else 0 }}</td>
+                <td>식대</td>
+                <td class="text-right">200,000</td>
                 <td>장기요양보험</td>
-                <td class="text-right">{{ "{:,}".format(detail.long_term_care) if detail.long_term_care else 0 }}</td>
+                <td class="text-right">30,750</td>
             </tr>
             <tr>
                 <td>자가운전보조금</td>
-                <td class="text-right">{{ "{:,}".format(detail.car_allowance) if detail.car_allowance else 0 }}</td>
+                <td class="text-right">200,000</td>
                 <td>고용보험</td>
-                <td class="text-right">{{ "{:,}".format(detail.employment_insurance) if detail.employment_insurance else 0 }}</td>
+                <td class="text-right">60,300</td>
             </tr>
             <tr>
                 <td>월차당</td>
-                <td class="text-right">{{ "{:,}".format(detail.monthly_leave_allowance) if detail.monthly_leave_allowance else 0 }}</td>
+                <td></td>
                 <td>소득세</td>
-                <td class="text-right">{{ "{:,}".format(detail.income_tax) if detail.income_tax else 0 }}</td>
+                <td class="text-right">481,490</td>
             </tr>
             <tr>
                 <td>야간근로수당</td>
-                <td class="text-right">{{ "{:,}".format(detail.night_work_allowance) if detail.night_work_allowance else 0 }}</td>
+                <td></td>
                 <td>지방소득세</td>
-                <td class="text-right">{{ "{:,}".format(detail.local_income_tax) if detail.local_income_tax else 0 }}</td>
+                <td class="text-right">48,140</td>
             </tr>
             <tr>
                 <td>연장근로수당</td>
-                <td class="text-right">{{ "{:,}".format(detail.overtime_allowance) if detail.overtime_allowance else 0 }}</td>
+                <td></td>
                 <td>농특세</td>
-                <td class="text-right">{{ "{:,}".format(detail.agriculture_tax) if detail.agriculture_tax else 0 }}</td>
+                <td></td>
             </tr>
             <tr class="total-row">
                 <td>지급액계</td>
-                <td class="text-right total-amount">{{ "{:,}".format(detail.total_payment) if detail.total_payment else 0 }}</td>
+                <td class="text-right total-amount">7,100,000</td>
                 <td>공제액계</td>
-                <td class="text-right total-amount">{{ "{:,}".format(detail.total_deduction) if detail.total_deduction else 0 }}</td>
+                <td class="text-right total-amount">1,135,840</td>
             </tr>
             <tr>
                 <td colspan="2" style="border: none; background: none;"></td>
                 <td class="gray-bg" style="font-weight: 600;">실수령액</td>
-                <td class="text-right total-amount" style="background-color: #E7F0FF;">{{ "{:,}".format(detail.net_pay) if detail.net_pay else detail.total_payment - detail.total_deduction if detail.total_payment and detail.total_deduction else 0 }}</td>
+                <td class="text-right total-amount" style="background-color: #eef2f7;">5,964,160</td>
             </tr>
         </table>
 
@@ -259,19 +370,19 @@
                         <span class="info-label">근로일수 :</span>
                     </td>
                     <td style="width: 16.66%;">
-                        <span>{{ detail.work_days if detail.work_days else 0 }}일</span>
+                        <span>21일</span>
                     </td>
                     <td style="width: 16.66%; text-align: right;">
                         <span class="info-label">총근로시간수 :</span>
                     </td>
                     <td style="width: 16.66%;">
-                        <span>{{ detail.total_work_hours if detail.total_work_hours else 0 }}</span>
+                        <span>168.00</span>
                     </td>
                     <td style="width: 16.66%; text-align: right;">
                         <span class="info-label">연장근로시간수 :</span>
                     </td>
                     <td style="width: 16.66%;">
-                        <span>{{ detail.overtime_hours if detail.overtime_hours else 0 }}</span>
+                        <span></span>
                     </td>
                 </tr>
                 <tr>
@@ -279,19 +390,19 @@
                         <span class="info-label">야간근로시간수 :</span>
                     </td>
                     <td style="width: 16.66%;">
-                        <span>{{ detail.night_work_hours if detail.night_work_hours else 0 }}</span>
+                        <span></span>
                     </td>
                     <td style="width: 16.66%; text-align: right;">
                         <span class="info-label">휴일근로시간수 :</span>
                     </td>
                     <td style="width: 16.66%;">
-                        <span>{{ detail.holiday_work_hours if detail.holiday_work_hours else 0 }}</span>
+                        <span></span>
                     </td>
                     <td style="width: 16.66%; text-align: right;">
                         <span class="info-label">통상시급(원) :</span>
                     </td>
                     <td style="width: 16.66%;">
-                        <span>{{ "{:,}".format(detail.hourly_wage) if detail.hourly_wage else 0 }}</span>
+                        <span></span>
                     </td>
                 </tr>
             </table>
@@ -309,51 +420,51 @@
             <tr>
                 <td>기본급</td>
                 <td>기본급월정액/근로계약서의 연봉을 12로 나눈 금액으로 함.</td>
-                <td class="text-right">{{ "{:,}".format(detail.base_salary) if detail.base_salary else 0 }}</td>
+                <td class="text-right">6,300,000</td>
             </tr>
             <tr>
                 <td>직책수당</td>
                 <td>직책별수당</td>
-                <td class="text-right">{{ "{:,}".format(detail.position_allowance) if detail.position_allowance else 0 }}</td>
+                <td class="text-right">400,000</td>
             </tr>
             <tr>
                 <td>식대</td>
                 <td>월 고정액</td>
-                <td class="text-right">{{ "{:,}".format(detail.meal_allowance) if detail.meal_allowance else 0 }}</td>
+                <td class="text-right">200,000</td>
             </tr>
             <tr>
                 <td>자가운전보조금</td>
                 <td>차량보조 지급(고정액)</td>
-                <td class="text-right">{{ "{:,}".format(detail.car_allowance) if detail.car_allowance else 0 }}</td>
+                <td class="text-right">200,000</td>
             </tr>
             <tr>
                 <td>국민연금</td>
                 <td>소득월액 *4.5％</td>
-                <td class="text-right">{{ "{:,}".format(detail.national_pension) if detail.national_pension else 0 }}</td>
+                <td class="text-right">277,650</td>
             </tr>
             <tr>
                 <td>건강보험</td>
                 <td>소득월액 *3.545％</td>
-                <td class="text-right">{{ "{:,}".format(detail.health_insurance) if detail.health_insurance else 0 }}</td>
+                <td class="text-right">237,510</td>
             </tr>
             <tr>
                 <td>장기요양보험</td>
                 <td>(본부담)건강보험료의 12.95％</td>
-                <td class="text-right">{{ "{:,}".format(detail.long_term_care) if detail.long_term_care else 0 }}</td>
+                <td class="text-right">30,750</td>
             </tr>
             <tr>
                 <td>고용보험</td>
                 <td>소득월액*0.9％</td>
-                <td class="text-right">{{ "{:,}".format(detail.employment_insurance) if detail.employment_insurance else 0 }}</td>
+                <td class="text-right">60,300</td>
             </tr>
         </table>
 
         <div class="company-info">
             (주)우리소프트<br>
             <div class="contact-info">
-                담당자: {{ created_by_name }} | 전화: {{ created_by_phone }} | 이메일: {{ created_by_email }}
+                담당자: 인사팀 | 전화: 02-XXX-XXXX | 이메일: hr@woorisoftware.com
             </div>
         </div>
     </div>
 </body>
-</html> 
+</html>

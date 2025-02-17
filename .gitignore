@@ -45,7 +45,6 @@ ENV/
 *.sublime-project
 
 # Database
-*.db
 *.sqlite3
 *.sqlite
 *.db-journal

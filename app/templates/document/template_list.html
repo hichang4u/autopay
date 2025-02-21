@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- 페이지 헤더 -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 text-gray-800">템플릿 관리</h1>
+        <div>
+            <a href="{{ url_for('document.template_create') }}" class="btn btn-primary">
+                <i class="bi bi-plus-lg me-1"></i>새 템플릿
+            </a>
+        </div>
+    </div>
+
+    <!-- 검색 및 필터 -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form id="searchForm" class="row g-3">
+                <div class="col-md-3">
+                    <div class="form-floating">
+                        <select class="form-select" id="categoryFilter" name="category">
+                            <option value="">전체</option>
+                            {% for code, name in categories.items() %}
+                            <option value="{{ code }}">{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                        <label for="categoryFilter">문서 분류</label>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="searchKeyword" name="keyword" placeholder="검색어">
+                        <label for="searchKeyword">검색어</label>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary h-100 w-100">
+                        <i class="bi bi-search me-1"></i>검색
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 템플릿 목록 -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="templateTable">
+                    <thead>
+                        <tr>
+                            <th>분류</th>
+                            <th>종류</th>
+                            <th>이름</th>
+                            <th>설명</th>
+                            <th>등록일</th>
+                            <th>등록자</th>
+                            <th>관리</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- 템플릿 목록이 동적으로 로드됩니다 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 전역 변수로 문서 타입 데이터 설정
+const DOCUMENT_TYPES = {{ types | tojson | safe }};
+const DOCUMENT_CATEGORIES = {{ categories | tojson | safe }};
+
+// 알림 함수
+function showAlert(message, type = 'success') {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.role = 'alert';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    const container = document.querySelector('.container-fluid');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    // 3초 후 자동으로 닫기
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 3000);
+}
+
+function showSuccess(message) {
+    showAlert(message, 'success');
+}
+
+function showError(message) {
+    showAlert(message, 'danger');
+}
+
+// 페이지 로드 시 초기화
+document.addEventListener('DOMContentLoaded', function() {
+    // 템플릿 목록 로드
+    loadTemplates();
+    
+    // 검색 폼 제출 이벤트
+    const searchForm = document.getElementById('searchForm');
+    if (searchForm) {
+        searchForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            loadTemplates();
+        });
+    }
+});
+
+// 템플릿 목록 로드
+async function loadTemplates() {
+    try {
+        const categoryFilter = document.getElementById('categoryFilter');
+        const searchKeyword = document.getElementById('searchKeyword');
+        
+        const params = new URLSearchParams({
+            category: categoryFilter ? categoryFilter.value : '',
+            keyword: searchKeyword ? searchKeyword.value : ''
+        });
+        
+        const response = await fetch(`/document/template/list/search?${params}`, {
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            const tbody = document.querySelector('#templateTable tbody');
+            if (tbody) {
+                tbody.innerHTML = '';
+                
+                if (result.data && result.data.length > 0) {
+                    result.data.forEach(template => {
+                        tbody.innerHTML += `
+                            <tr>
+                                <td>${getDocumentTypeName(template.category)}</td>
+                                <td>${getDocumentTypeName(template.type)}</td>
+                                <td>${template.name}</td>
+                                <td>${template.description || ''}</td>
+                                <td>${formatDate(template.created_at)}</td>
+                                <td>${template.created_by}</td>
+                                <td>
+                                    <a href="/document/template/edit/${template.id}" class="btn btn-sm btn-outline-primary me-1">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteTemplate(${template.id})">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="7" class="text-center">등록된 템플릿이 없습니다.</td>
+                        </tr>
+                    `;
+                }
+            }
+        } else {
+            showError(result.message || '템플릿 목록을 불러오는데 실패했습니다.');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showError('템플릿 목록을 불러오는 중 오류가 발생했습니다.');
+    }
+}
+
+// 템플릿 삭제
+async function deleteTemplate(id) {
+    if (!confirm('정말 이 템플릿을 삭제하시겠습니까?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/document/template/delete/${id}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            showSuccess('템플릿이 삭제되었습니다.');
+            loadTemplates();
+        } else {
+            showError(result.message || '템플릿 삭제에 실패했습니다.');
+        }
+    } catch (error) {
+        showError('템플릿 삭제 중 오류가 발생했습니다.');
+    }
+}
+
+// 문서 종류 이름 가져오기
+function getDocumentTypeName(type) {
+    // 카테고리인 경우
+    if (DOCUMENT_CATEGORIES[type]) {
+        return DOCUMENT_CATEGORIES[type];
+    }
+    
+    // 문서 종류인 경우
+    for (const category in DOCUMENT_TYPES) {
+        if (DOCUMENT_TYPES[category][type]) {
+            return DOCUMENT_TYPES[category][type];
+        }
+    }
+    return type;
+}
+
+// 날짜 포맷
+function formatDate(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('ko-KR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+</script>
+{% endblock %} 

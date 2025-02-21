@@ -1,4 +1,4 @@
-from app import db, login_manager
+from app import db
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
@@ -7,30 +7,7 @@ from pytz import timezone
 def get_korea_time():
     return datetime.now(timezone('Asia/Seoul'))
 
-class CodeGroup(db.Model):
-    __tablename__ = 'code_groups'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    group_code = db.Column(db.String(20), unique=True, nullable=False)
-    group_name = db.Column(db.String(50), nullable=False)
-    use_yn = db.Column(db.String(1), default='Y')
-    created_at = db.Column(db.DateTime, default=get_korea_time)
-
-class Code(db.Model):
-    __tablename__ = 'codes'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    group_code = db.Column(db.String(20), nullable=False)
-    code = db.Column(db.String(20), nullable=False)
-    name = db.Column(db.String(50), nullable=False)
-    order_seq = db.Column(db.Integer, default=0)
-    use_yn = db.Column(db.String(1), default='Y')
-    created_at = db.Column(db.DateTime, default=get_korea_time)
-    
-    __table_args__ = (
-        db.UniqueConstraint('group_code', 'code', name='uix_group_code_code'),
-    )
-
+# 기존 모델들을 여기로 이동
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -39,7 +16,7 @@ class User(UserMixin, db.Model):
     name = db.Column(db.String(50))
     phone = db.Column(db.String(20))
     is_active = db.Column(db.Boolean, default=True)
-    is_admin = db.Column(db.Boolean, default=False)  # 관리자 권한
+    is_admin = db.Column(db.Boolean, default=False)
     last_login = db.Column(db.DateTime)
     login_ip = db.Column(db.String(45))
     failed_login_attempts = db.Column(db.Integer, default=0)
@@ -57,21 +34,11 @@ class User(UserMixin, db.Model):
         if self.locked_until and self.locked_until > datetime.now():
             return True
         return False
-        
-    @property
-    def is_authenticated(self):
-        return True if self.is_active and not self.is_locked() else False
-        
-    def get_id(self):
-        return str(self.id)
-        
+
     def __repr__(self):
         return f'<User {self.username}>'
 
-@login_manager.user_loader
-def load_user(id):
-    return User.query.get(int(id))
-
+# Employee 모델
 class Employee(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     emp_number = db.Column(db.String(10), unique=True, nullable=False)
@@ -85,16 +52,15 @@ class Employee(db.Model):
     
     # 생성 정보
     created_at = db.Column(db.DateTime, default=get_korea_time)
-    created_by = db.Column(db.String(80))  # 생성자 username
-    created_ip = db.Column(db.String(45))  # IPv6까지 고려한 길이
+    created_by = db.Column(db.String(80))
+    created_ip = db.Column(db.String(45))
     
     # 수정 정보
     updated_at = db.Column(db.DateTime, onupdate=get_korea_time)
-    updated_by = db.Column(db.String(80))  # 수정자 username
-    updated_ip = db.Column(db.String(45))  # IPv6까지 고려한 길이
+    updated_by = db.Column(db.String(80))
+    updated_ip = db.Column(db.String(45))
     
     def to_dict(self):
-        """직원 정보를 딕셔너리로 변환"""
         return {
             'id': self.id,
             'emp_number': self.emp_number,
@@ -109,6 +75,7 @@ class Employee(db.Model):
             'updated_by': self.updated_by
         }
 
+# EmployeeHistory 모델
 class EmployeeHistory(db.Model):
     """직원 정보 변경 이력"""
     id = db.Column(db.Integer, primary_key=True)
@@ -123,6 +90,7 @@ class EmployeeHistory(db.Model):
 
     employee = db.relationship('Employee', backref=db.backref('history', lazy=True))
 
+# PayrollRecord 모델
 class PayrollRecord(db.Model):
     __tablename__ = 'payroll_record'
     
@@ -131,10 +99,10 @@ class PayrollRecord(db.Model):
     payment_date = db.Column(db.Date, nullable=False)
     status = db.Column(db.String(20), default='TEMP_SAVE')
     
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=get_korea_time)
     created_by = db.Column(db.String(80))
     created_ip = db.Column(db.String(45))
-    updated_at = db.Column(db.DateTime, onupdate=datetime.now)
+    updated_at = db.Column(db.DateTime, onupdate=get_korea_time)
     updated_by = db.Column(db.String(80))
     updated_ip = db.Column(db.String(45))
     
@@ -143,6 +111,7 @@ class PayrollRecord(db.Model):
     def __repr__(self):
         return f'<PayrollRecord {self.pay_year_month}>'
 
+# PayrollDetail 모델
 class PayrollDetail(db.Model):
     __tablename__ = 'payroll_detail'
     
@@ -169,5 +138,7 @@ class PayrollDetail(db.Model):
     employment_insurance = db.Column(db.Integer, default=0)  # 고용보험
     total_deduction = db.Column(db.Integer, default=0)  # 공제액 계
     
-    created_at = db.Column(db.DateTime, default=datetime.now)
-    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+    created_at = db.Column(db.DateTime, default=get_korea_time)
+    updated_at = db.Column(db.DateTime, onupdate=get_korea_time)
+
+# 다른 모델들도 필요에 따라 여기에 추가 

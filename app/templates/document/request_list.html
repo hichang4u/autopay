@@ -1,0 +1,467 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- 페이지 헤더 -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 text-gray-800">문서 신청 목록</h1>
+        <a href="{{ url_for('document.request_page') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>새 문서 신청
+        </a>
+    </div>
+
+    <!-- 검색 필터 -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form id="searchForm" class="row g-3">
+                <div class="col-md-3">
+                    <select class="form-select" id="searchCategory">
+                        <option value="">전체 분류</option>
+                        {% for code, name in categories.items() %}
+                        <option value="{{ code }}">{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" id="searchStatus">
+                        <option value="">전체 상태</option>
+                        <option value="PENDING">대기중</option>
+                        <option value="APPROVED">승인됨</option>
+                        <option value="REJECTED">반려됨</option>
+                        <option value="COMPLETED">완료</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <input type="text" class="form-control" id="searchKeyword" placeholder="검색어 입력">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-search me-1"></i>검색
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 문서 처리 현황 -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6">
+            <div class="card border-left-warning h-100">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">대기중</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="pendingCount">0</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-clock h2 text-warning"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="card border-left-primary h-100">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">승인됨</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="approvedCount">0</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-check-circle h2 text-primary"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="card border-left-success h-100">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">완료</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="completedCount">0</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-file-check h2 text-success"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="card border-left-danger h-100">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">반려됨</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="rejectedCount">0</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-x-circle h2 text-danger"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 문서 목록 -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="documentTable">
+                    <thead>
+                        <tr>
+                            <th>번호</th>
+                            <th>문서번호</th>
+                            <th>신청일</th>
+                            <th>문서종류</th>
+                            <th>제목</th>
+                            <th>상태</th>
+                            <th>처리일</th>
+                            <th>관리</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- 문서 목록이 동적으로 로드됩니다 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 문서 상세 모달 -->
+<div class="modal fade" id="documentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">문서 상세</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">문서번호</label>
+                        <p class="form-control-plaintext" id="modalDocumentNumber"></p>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">상태</label>
+                        <p class="form-control-plaintext" id="modalStatus"></p>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">문서종류</label>
+                        <p class="form-control-plaintext" id="modalType"></p>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">신청일</label>
+                        <p class="form-control-plaintext" id="modalRequestDate"></p>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">제목</label>
+                    <p class="form-control-plaintext" id="modalTitle"></p>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">처리의견</label>
+                    <p class="form-control-plaintext" id="modalComment"></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+                <button type="button" class="btn btn-primary" id="modalDownloadBtn" style="display: none;">
+                    <i class="bi bi-download me-1"></i>다운로드
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 문서 처리 모달 -->
+<div class="modal fade" id="processModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">문서 처리</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="processForm">
+                    <input type="hidden" id="processDocumentId">
+                    <div class="mb-3">
+                        <label for="processStatus" class="form-label">처리상태</label>
+                        <select class="form-select" id="processStatus" required>
+                            <option value="">선택하세요</option>
+                            <option value="APPROVED">승인</option>
+                            <option value="REJECTED">반려</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="processComment" class="form-label">처리의견</label>
+                        <textarea class="form-control" id="processComment" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-primary" onclick="processDocument()">처리완료</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 문서 목록 로드
+async function loadDocuments() {
+    try {
+        const category = document.getElementById('searchCategory').value;
+        const status = document.getElementById('searchStatus').value;
+        const keyword = document.getElementById('searchKeyword').value;
+        
+        const params = new URLSearchParams();
+        if (category) params.append('category', category);
+        if (status) params.append('status', status);
+        if (keyword) params.append('keyword', keyword);
+        
+        const response = await fetch(`/document/search?${params.toString()}`);
+        const result = await response.json();
+        
+        if (result.success) {
+            updateCounts(result.counts);
+            updateTable(result.data);
+        } else {
+            showError(result.message || '문서 목록을 불러오는 중 오류가 발생했습니다.');
+        }
+    } catch (error) {
+        showError('문서 목록을 불러오는 중 오류가 발생했습니다.');
+    }
+}
+
+// 상태별 건수 업데이트
+function updateCounts(counts) {
+    document.getElementById('pendingCount').textContent = counts.pending;
+    document.getElementById('approvedCount').textContent = counts.approved;
+    document.getElementById('completedCount').textContent = counts.completed;
+    document.getElementById('rejectedCount').textContent = counts.rejected;
+}
+
+// 테이블 업데이트
+function updateTable(documents) {
+    const tbody = document.querySelector('#documentTable tbody');
+    tbody.innerHTML = '';
+    
+    documents.forEach((doc, index) => {
+        tbody.innerHTML += `
+            <tr>
+                <td>${index + 1}</td>
+                <td>${doc.document_number || '-'}</td>
+                <td>${formatDate(doc.request_date)}</td>
+                <td>${getDocumentTypeName(doc.type)}</td>
+                <td>${doc.title}</td>
+                <td>
+                    <span class="badge bg-${getStatusColor(doc.status)}">
+                        ${getStatusName(doc.status)}
+                    </span>
+                </td>
+                <td>${doc.process_date ? formatDate(doc.process_date) : '-'}</td>
+                <td>
+                    ${getActionButtons(doc)}
+                </td>
+            </tr>
+        `;
+    });
+}
+
+// 상태에 따른 배지 색상
+function getStatusColor(status) {
+    const colors = {
+        'PENDING': 'warning',
+        'APPROVED': 'primary',
+        'COMPLETED': 'success',
+        'REJECTED': 'danger'
+    };
+    return colors[status] || 'secondary';
+}
+
+// 상태 한글명
+function getStatusName(status) {
+    const names = {
+        'PENDING': '대기중',
+        'APPROVED': '승인됨',
+        'COMPLETED': '완료',
+        'REJECTED': '반려됨'
+    };
+    return names[status] || status;
+}
+
+// 문서 종류 이름 가져오기
+function getDocumentTypeName(type) {
+    const documentTypes = JSON.parse('{{ document_types | tojson | safe }}');
+    for (const category in documentTypes) {
+        if (documentTypes[category][type]) {
+            return documentTypes[category][type];
+        }
+    }
+    return type;
+}
+
+// 상태에 따른 작업 버튼
+function getActionButtons(doc) {
+    let buttons = `
+        <button class="btn btn-sm btn-outline-secondary me-1" onclick="viewDocument(${doc.id})">
+            <i class="bi bi-eye"></i>
+        </button>
+    `;
+    
+    if (doc.status === 'PENDING') {
+        buttons += `
+            <button class="btn btn-sm btn-outline-primary" onclick="openProcessModal(${doc.id})">
+                <i class="bi bi-check2-circle"></i>
+            </button>
+        `;
+    }
+    
+    if (doc.status === 'COMPLETED' && doc.file_path) {
+        buttons += `
+            <button class="btn btn-sm btn-outline-success" onclick="downloadDocument(${doc.id})">
+                <i class="bi bi-download"></i>
+            </button>
+        `;
+    }
+    
+    return buttons;
+}
+
+// 문서 상세 보기
+async function viewDocument(id) {
+    try {
+        const response = await fetch(`/document/${id}`);
+        const result = await response.json();
+        
+        if (result.success) {
+            const doc = result.data;
+            
+            document.getElementById('modalDocumentNumber').textContent = doc.document_number || '-';
+            document.getElementById('modalType').textContent = getDocumentTypeName(doc.type);
+            document.getElementById('modalStatus').innerHTML = `
+                <span class="badge bg-${getStatusColor(doc.status)}">
+                    ${getStatusName(doc.status)}
+                </span>
+            `;
+            document.getElementById('modalRequestDate').textContent = formatDate(doc.request_date);
+            document.getElementById('modalTitle').textContent = doc.title;
+            document.getElementById('modalComment').textContent = doc.process_comment || '-';
+            
+            // 다운로드 버튼 표시 여부
+            const downloadBtn = document.getElementById('modalDownloadBtn');
+            if (doc.status === 'COMPLETED' && doc.file_path) {
+                downloadBtn.style.display = 'block';
+                downloadBtn.onclick = () => downloadDocument(doc.id);
+            } else {
+                downloadBtn.style.display = 'none';
+            }
+            
+            const modal = new bootstrap.Modal(document.getElementById('documentModal'));
+            modal.show();
+        } else {
+            showError(result.message || '문서 정보를 불러오는 중 오류가 발생했습니다.');
+        }
+    } catch (error) {
+        showError('문서 정보를 불러오는 중 오류가 발생했습니다.');
+    }
+}
+
+// 문서 처리 모달 열기
+function openProcessModal(id) {
+    document.getElementById('processDocumentId').value = id;
+    document.getElementById('processStatus').value = '';
+    document.getElementById('processComment').value = '';
+    
+    const modal = new bootstrap.Modal(document.getElementById('processModal'));
+    modal.show();
+}
+
+// 문서 처리
+async function processDocument() {
+    const id = document.getElementById('processDocumentId').value;
+    const status = document.getElementById('processStatus').value;
+    const comment = document.getElementById('processComment').value;
+    
+    if (!status) {
+        showError('처리상태를 선택해주세요.');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/document/process/${id}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify({ status, comment })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            showSuccess('문서가 처리되었습니다.');
+            bootstrap.Modal.getInstance(document.getElementById('processModal')).hide();
+            loadDocuments();
+        } else {
+            showError(result.message || '문서 처리 중 오류가 발생했습니다.');
+        }
+    } catch (error) {
+        showError('문서 처리 중 오류가 발생했습니다.');
+    }
+}
+
+// 문서 다운로드
+async function downloadDocument(id) {
+    try {
+        const response = await fetch(`/document/download/${id}`);
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = response.headers.get('Content-Disposition').split('filename=')[1];
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+        } else {
+            showError('문서 다운로드 중 오류가 발생했습니다.');
+        }
+    } catch (error) {
+        showError('문서 다운로드 중 오류가 발생했습니다.');
+    }
+}
+
+// 날짜 포맷
+function formatDate(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleString('ko-KR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+// 검색 폼 제출
+document.getElementById('searchForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    loadDocuments();
+});
+
+// 페이지 로드 시 문서 목록 로드
+document.addEventListener('DOMContentLoaded', loadDocuments);
+</script>
+{% endblock %} 

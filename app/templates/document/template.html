@@ -1,0 +1,425 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- 페이지 헤더 -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 text-gray-800">템플릿 관리</h1>
+        <button type="button" class="btn btn-primary" onclick="openNewTemplateModal()">
+            <i class="bi bi-plus-lg me-1"></i>새 템플릿
+        </button>
+    </div>
+
+    <!-- 템플릿 목록 -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="templateTable">
+                    <thead>
+                        <tr>
+                            <th>분류</th>
+                            <th>종류</th>
+                            <th>이름</th>
+                            <th>설명</th>
+                            <th>등록일</th>
+                            <th>등록자</th>
+                            <th>관리</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- 템플릿 목록이 동적으로 로드됩니다 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 새 템플릿 모달 -->
+<div class="modal fade" id="newTemplateModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">새 템플릿</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="templateForm">
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <div class="form-floating mb-3">
+                                <select class="form-select" id="category" required>
+                                    <option value="">선택하세요</option>
+                                    {% for code, name in categories.items() %}
+                                    <option value="{{ code }}">{{ name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <label for="category">문서 분류</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-floating mb-3">
+                                <select class="form-select" id="type" required disabled>
+                                    <option value="">문서 분류를 먼저 선택하세요</option>
+                                </select>
+                                <label for="type">문서 종류</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-floating">
+                                <input type="text" class="form-control" id="name" required>
+                                <label for="name">템플릿 이름</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="form-floating">
+                                <textarea class="form-control" id="description" style="height: 100px"></textarea>
+                                <label for="description">설명</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="form-label mb-0">템플릿 내용</label>
+                                <div class="btn-group">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="applyLayout('certificate')">
+                                        <i class="bi bi-card-text me-1"></i>증명서
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="applyLayout('official')">
+                                        <i class="bi bi-file-text me-1"></i>공문서
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="viewTemplateSample()">
+                                        <i class="bi bi-eye me-1"></i>샘플보기
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="editor" style="height: 500px; border: 1px solid #dee2e6; border-radius: 0.25rem;"></div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-primary" onclick="saveTemplate()">저장</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 템플릿 샘플 모달 -->
+<div class="modal fade" id="sampleModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">템플릿 샘플</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="nav nav-tabs mb-3">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#certificateSample">
+                        증명서
+                    </button>
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#officialSample">
+                        공문서
+                    </button>
+                </div>
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="certificateSample">
+                        <!-- 증명서 샘플 내용 -->
+                    </div>
+                    <div class="tab-pane fade" id="officialSample">
+                        <!-- 공문서 샘플 내용 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+<style>
+    .ql-editor {
+        min-height: 200px;
+        font-family: 'Pretendard Variable', sans-serif;
+    }
+    
+    .ql-toolbar {
+        border-top-left-radius: 0.25rem;
+        border-top-right-radius: 0.25rem;
+    }
+    
+    .ql-container {
+        border-bottom-left-radius: 0.25rem;
+        border-bottom-right-radius: 0.25rem;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+<script>
+// 문서 종류 데이터
+const documentTypes = JSON.parse('{{ document_types | tojson | safe }}');
+
+// Quill 에디터 초기화
+const quill = new Quill('#editor', {
+    theme: 'snow',
+    modules: {
+        toolbar: [
+            [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+            ['bold', 'italic', 'underline', 'strike'],
+            [{ 'align': [] }],
+            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+            [{ 'indent': '-1'}, { 'indent': '+1' }],
+            [{ 'color': [] }, { 'background': [] }],
+            ['clean']
+        ]
+    }
+});
+
+// 문서 분류 선택 시 문서 종류 업데이트
+document.getElementById('category').addEventListener('change', function() {
+    const typeSelect = document.getElementById('type');
+    const category = this.value;
+    
+    typeSelect.innerHTML = '<option value="">선택하세요</option>';
+    if (category && documentTypes[category]) {
+        Object.entries(documentTypes[category]).forEach(([code, name]) => {
+            const option = document.createElement('option');
+            option.value = code;
+            option.textContent = name;
+            typeSelect.appendChild(option);
+        });
+        typeSelect.disabled = false;
+    } else {
+        typeSelect.disabled = true;
+    }
+});
+
+// 템플릿 목록 로드
+async function loadTemplates() {
+    try {
+        const response = await fetch('/document/templates');
+        const result = await response.json();
+        
+        if (result.success) {
+            const tbody = document.querySelector('#templateTable tbody');
+            tbody.innerHTML = '';
+            
+            result.data.forEach(template => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${getCategoryName(template.category)}</td>
+                        <td>${getDocumentTypeName(template.type)}</td>
+                        <td>${template.name}</td>
+                        <td>${template.description || ''}</td>
+                        <td>${formatDate(template.created_at)}</td>
+                        <td>${template.created_by}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary me-1" onclick="editTemplate(${template.id})">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteTemplate(${template.id})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+    } catch (error) {
+        showError('템플릿 목록을 불러오는 중 오류가 발생했습니다.');
+    }
+}
+
+// 템플릿 저장
+async function saveTemplate() {
+    const templateData = {
+        category: document.getElementById('category').value,
+        type: document.getElementById('type').value,
+        name: document.getElementById('name').value,
+        description: document.getElementById('description').value,
+        content: quill.root.innerHTML,
+        style: {
+            fontFamily: 'Pretendard',
+            fontSize: '16px'
+        }
+    };
+
+    try {
+        const response = await fetch('/document/template/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify(templateData)
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            showSuccess('템플릿이 저장되었습니다.');
+            bootstrap.Modal.getInstance(document.getElementById('newTemplateModal')).hide();
+            loadTemplates();
+        } else {
+            showError(result.message || '템플릿 저장 중 오류가 발생했습니다.');
+        }
+    } catch (error) {
+        showError('템플릿 저장 중 오류가 발생했습니다.');
+    }
+}
+
+// 템플릿 삭제
+async function deleteTemplate(id) {
+    if (await showConfirm('이 템플릿을 삭제하시겠습니까?')) {
+        try {
+            const response = await fetch(`/document/template/delete/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                }
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                showSuccess('템플릿이 삭제되었습니다.');
+                loadTemplates();
+            } else {
+                showError(result.message || '템플릿 삭제 중 오류가 발생했습니다.');
+            }
+        } catch (error) {
+            showError('템플릿 삭제 중 오류가 발생했습니다.');
+        }
+    }
+}
+
+// 템플릿 편집
+async function editTemplate(id) {
+    try {
+        const response = await fetch(`/document/template/${id}`);
+        const result = await response.json();
+        
+        if (result.success) {
+            const template = result.data;
+            
+            document.getElementById('category').value = template.category;
+            document.getElementById('category').dispatchEvent(new Event('change'));
+            
+            document.getElementById('type').value = template.type;
+            document.getElementById('name').value = template.name;
+            document.getElementById('description').value = template.description || '';
+            quill.root.innerHTML = template.content;
+            
+            const modal = new bootstrap.Modal(document.getElementById('newTemplateModal'));
+            modal.show();
+        } else {
+            showError(result.message || '템플릿을 불러오는 중 오류가 발생했습니다.');
+        }
+    } catch (error) {
+        showError('템플릿을 불러오는 중 오류가 발생했습니다.');
+    }
+}
+
+// 레이아웃 적용
+function applyLayout(type) {
+    const layouts = {
+        certificate: `
+            <h1 class="text-center mb-5">증명서</h1>
+            <div class="mb-4">
+                <p>문서번호: {document_number}</p>
+                <p>발급일자: {issue_date}</p>
+            </div>
+            <div class="mb-4">
+                <table class="table table-bordered">
+                    <tr>
+                        <th width="20%">성명</th>
+                        <td>{name}</td>
+                        <th width="20%">생년월일</th>
+                        <td>{birth_date}</td>
+                    </tr>
+                    <tr>
+                        <th>소속</th>
+                        <td>{department}</td>
+                        <th>직위</th>
+                        <td>{position}</td>
+                    </tr>
+                </table>
+            </div>
+            <div class="mb-5">
+                <p>위 사람은 {purpose}을(를) 위하여 이 증명서를 발급합니다.</p>
+            </div>
+            <div class="text-center">
+                <p>{issue_date}</p>
+                <h2 class="mt-4">(주)우리소프트</h2>
+            </div>
+        `,
+        official: `
+            <div class="text-end mb-4">
+                <p>문서번호: {document_number}</p>
+                <p>시행일자: {issue_date}</p>
+            </div>
+            <h1 class="text-center mb-5">{title}</h1>
+            <div class="mb-4">
+                <p>수신: {receiver}</p>
+                <p>참조: {reference}</p>
+            </div>
+            <div class="content mb-5">
+                {content}
+            </div>
+            <div class="text-center">
+                <p>{issue_date}</p>
+                <h2 class="mt-4">(주)우리소프트</h2>
+            </div>
+        `
+    };
+    
+    if (layouts[type]) {
+        quill.root.innerHTML = layouts[type];
+    }
+}
+
+// 템플릿 샘플 보기
+function viewTemplateSample() {
+    const modal = new bootstrap.Modal(document.getElementById('sampleModal'));
+    modal.show();
+}
+
+// 문서 분류 이름 가져오기
+function getCategoryName(category) {
+    return {
+        'OFFICIAL': '공문',
+        'CERTIFICATE': '증명서'
+    }[category] || category;
+}
+
+// 문서 종류 이름 가져오기
+function getDocumentTypeName(type) {
+    for (const category in documentTypes) {
+        if (documentTypes[category][type]) {
+            return documentTypes[category][type];
+        }
+    }
+    return type;
+}
+
+// 날짜 포맷
+function formatDate(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleString('ko-KR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+// 페이지 로드 시 템플릿 목록 로드
+document.addEventListener('DOMContentLoaded', loadTemplates);
+</script>
+{% endblock %} 

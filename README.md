@@ -49,6 +49,14 @@ flask run
 
 웹 브라우저에서 `http://localhost:5000` 접속
 
+## 테스트 계정 생성
+
+```bash
+python create_test_user.py
+```
+테스트 계정 : test / Test1234!, wrsoft / Test1234!
+
+
 ## 주요 기능
 
 - 급여 데이터 관리

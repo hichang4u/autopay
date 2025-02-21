@@ -1,0 +1,627 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+.bg-light-hover:hover {
+    background-color: #e9ecef !important;
+    transition: background-color 0.2s ease-in-out;
+}
+</style>
+
+<div class="container-fluid">
+    <!-- CSRF 토큰 추가 -->
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <!-- 페이지 헤더 -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 text-gray-800">문서 신청</h1>
+    </div>
+
+    <!-- 문서 신청 폼 -->
+    <div class="card">
+        <div class="card-body">
+            <form id="requestForm">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="form-floating">
+                            <select class="form-select" id="category" name="category" required>
+                                <option value="">선택하세요</option>
+                                {% for code, name in categories.items() %}
+                                <option value="{{ code }}">{{ name }}</option>
+                                {% endfor %}
+                            </select>
+                            <label for="category">문서 분류</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-floating">
+                            <select class="form-select" id="type" name="type" required disabled>
+                                <option value="">문서 분류를 먼저 선택하세요</option>
+                            </select>
+                            <label for="type">문서 종류</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <div class="form-floating">
+                            <input type="text" class="form-control" id="title" name="title" required>
+                            <label for="title">제목</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 템플릿 선택 및 내용 입력 필드 추가 -->
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <div class="form-floating">
+                            <select class="form-select" id="templateId" name="templateId">
+                                <option value="">선택하세요</option>
+                            </select>
+                            <label for="templateId">템플릿 선택</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3" id="contentSection" style="display: none;">
+                    <div class="col-md-12">
+                        <label class="form-label">문서 내용</label>
+                        <div id="editor"></div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="form-floating">
+                            <input type="text" class="form-control" id="purpose" name="purpose">
+                            <label for="purpose">용도</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-floating">
+                            <input type="text" class="form-control" id="submitTo" name="submitTo">
+                            <label for="submitTo">제출처</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="form-floating">
+                            <input type="date" class="form-control" id="requestDate" name="requestDate" required>
+                            <label for="requestDate">신청일</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-floating">
+                            <input type="email" class="form-control" id="email" name="email" required>
+                            <label for="email">이메일</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="emailReceive" name="emailReceive" checked>
+                            <label class="form-check-label" for="emailReceive">
+                                처리결과를 이메일로 받겠습니다.
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-end">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-send me-1"></i>신청하기
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 신청 내역 -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0">나의 신청 내역</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle" id="requestTable">
+                    <thead>
+                        <tr>
+                            <th class="text-center" style="width: 70px">번호</th>
+                            <th class="text-center" style="width: 180px">신청일</th>
+                            <th class="text-center" style="width: 130px">문서종류</th>
+                            <th class="text-start">제목</th>
+                            <th class="text-center" style="width: 100px">상태</th>
+                            <th class="text-center" style="width: 100px">관리</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- 신청 내역이 동적으로 로드됩니다 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 미리보기 모달 -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">문서 미리보기</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <iframe id="previewFrame" style="width: 100%; height: 600px; border: none;"></iframe>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 문서 내용 보기 모달 -->
+<div class="modal fade" id="viewDocumentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">문서 내용</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">문서 정보</label>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><small class="text-muted">신청일:</small> <span id="viewRequestDate"></span></p>
+                            <p><small class="text-muted">문서종류:</small> <span id="viewDocumentType"></span></p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><small class="text-muted">처리상태:</small> <span id="viewStatus"></span></p>
+                            <p><small class="text-muted">처리일:</small> <span id="viewProcessDate"></span></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">제목</label>
+                    <p id="viewTitle"></p>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">내용</label>
+                    <div id="viewContent" class="border rounded p-3 bg-light"></div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">용도</label>
+                            <p id="viewPurpose"></p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">제출처</label>
+                            <p id="viewSubmitTo"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.ckeditor.com/ckeditor5/41.1.0/classic/ckeditor.js"></script>
+<script src="https://cdn.ckeditor.com/ckeditor5/41.1.0/classic/translations/ko.js"></script>
+<script>
+let editor;
+let currentTemplate = null;
+
+// 문서 종류 데이터
+const documentTypes = JSON.parse('{{ document_types | tojson | safe }}');
+
+// CKEditor 초기화
+document.addEventListener('DOMContentLoaded', function() {
+    ClassicEditor
+        .create(document.querySelector('#editor'), {
+            language: 'ko',
+            toolbar: ['heading', '|', 'bold', 'italic', '|', 'bulletedList', 'numberedList']
+        })
+        .then(newEditor => {
+            editor = newEditor;
+        })
+        .catch(error => {
+            console.error('에디터 초기화 중 오류:', error);
+        });
+});
+
+// 문서 분류 선택 시 문서 종류 업데이트
+document.getElementById('category').addEventListener('change', async function() {
+    const typeSelect = document.getElementById('type');
+    const category = this.value;
+    
+    // 문서 종류 옵션 설정
+    typeSelect.innerHTML = '<option value="">선택하세요</option>';
+    if (category && documentTypes[category]) {
+        Object.entries(documentTypes[category]).forEach(([code, name]) => {
+            const option = document.createElement('option');
+            option.value = code;
+            option.textContent = name;
+            typeSelect.appendChild(option);
+        });
+        typeSelect.disabled = false;
+    } else {
+        typeSelect.disabled = true;
+        typeSelect.innerHTML = '<option value="">분류를 먼저 선택하세요</option>';
+    }
+    
+    // 템플릿 선택 초기화
+    document.getElementById('templateId').innerHTML = '<option value="">선택하세요</option>';
+    document.getElementById('contentSection').style.display = 'none';
+});
+
+// 문서 종류 선택 시 템플릿 목록 로드
+document.getElementById('type').addEventListener('change', async function() {
+    const category = document.getElementById('category').value;
+    const type = this.value;
+    const templateSelect = document.getElementById('templateId');
+    
+    templateSelect.innerHTML = '<option value="">선택하세요</option>';
+    
+    if (!category || !type) return;
+    
+    try {
+        const response = await fetch(`/document/templates?category=${category}&type=${type}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            result.data.forEach(template => {
+                const option = document.createElement('option');
+                option.value = template.id;
+                option.textContent = template.name;
+                templateSelect.appendChild(option);
+            });
+        }
+    } catch (error) {
+        showError('템플릿 목록을 불러오는 중 오류가 발생했습니다.');
+    }
+});
+
+// 템플릿 선택 시 내용 로드
+document.getElementById('templateId').addEventListener('change', async function() {
+    const templateId = this.value;
+    const contentSection = document.getElementById('contentSection');
+    
+    if (!templateId) {
+        contentSection.style.display = 'none';
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/document/template/${templateId}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            currentTemplate = result.data;
+            editor.setData(result.data.content);
+            contentSection.style.display = 'block';
+        }
+    } catch (error) {
+        showError('템플릿 내용을 불러오는 중 오류가 발생했습니다.');
+    }
+});
+
+// 문서 신청 처리
+document.getElementById('requestForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = {
+        category: document.getElementById('category').value,
+        type: document.getElementById('type').value,
+        template_id: document.getElementById('templateId').value,
+        title: document.getElementById('title').value,
+        content: editor ? editor.getData() : '',
+        purpose: document.getElementById('purpose').value,
+        submitTo: document.getElementById('submitTo').value,
+        requestDate: document.getElementById('requestDate').value,
+        email: document.getElementById('email').value,
+        emailReceive: document.getElementById('emailReceive').checked
+    };
+
+    try {
+        const response = await fetch('/document/request', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+            },
+            body: JSON.stringify(formData)
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            showSuccess('문서가 성공적으로 신청되었습니다.');
+            this.reset();
+            editor.setData('');
+            document.getElementById('contentSection').style.display = 'none';
+            loadMyRequests();
+        } else {
+            showError(result.message || '문서 신청 중 오류가 발생했습니다.');
+        }
+    } catch (error) {
+        showError('문서 신청 중 오류가 발생했습니다.');
+    }
+});
+
+// 신청 내역 로드
+async function loadMyRequests() {
+    try {
+        const response = await fetch('/document/my-requests');
+        const result = await response.json();
+        
+        if (result.success) {
+            if (window.hideRetryButton) {
+                window.hideRetryButton();
+            }
+            
+            const tbody = document.querySelector('#requestTable tbody');
+            tbody.innerHTML = '';
+            
+            if (result.data.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center py-4">
+                            ${result.message || '신청 내역이 없습니다.'}
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            result.data.forEach((req, index) => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td class="text-center">${index + 1}</td>
+                        <td class="text-center small">${formatDate(req.request_date)}</td>
+                        <td class="text-center small">${req.type_name || getDocumentTypeName(req.type)}</td>
+                        <td class="text-start">
+                            <a href="#" class="text-decoration-none text-dark d-block text-truncate bg-light-hover rounded px-2 py-1" 
+                               onclick="viewDocument(${JSON.stringify(req).replace(/"/g, '&quot;')})"
+                               title="${req.title}"
+                               style="background-color: #f8f9fa;">
+                                ${req.title}
+                            </a>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-${getStatusColor(req.status)}">
+                                ${getStatusName(req.status)}
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            ${getActionButtons(req)}
+                        </td>
+                    </tr>
+                `;
+            });
+        } else {
+            showError(result.message || '신청 내역을 불러오는 중 오류가 발생했습니다.');
+            if (window.showRetryButton) {
+                window.showRetryButton();
+            }
+            if (result.error_details && console) {
+                console.error('Error details:', result.error_details);
+            }
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showError('신청 내역을 불러오는 중 오류가 발생했습니다.');
+        if (window.showRetryButton) {
+            window.showRetryButton();
+        }
+    }
+}
+
+// 상태에 따른 배지 색상
+function getStatusColor(status) {
+    const colors = {
+        'PENDING': 'warning',
+        'APPROVED': 'primary',
+        'REJECTED': 'danger',
+        'COMPLETED': 'info',
+        'CANCELED': 'secondary'
+    };
+    return colors[status] || 'secondary';
+}
+
+// 상태 한글명
+function getStatusName(status) {
+    const names = {
+        'PENDING': '대기',
+        'APPROVED': '승인',
+        'REJECTED': '반려',
+        'COMPLETED': '완료',
+        'CANCELED': '취소'
+    };
+    return names[status] || status;
+}
+
+// 상태에 따른 작업 버튼
+function getActionButtons(request) {
+    let buttons = '';
+    
+    if (request.status === 'COMPLETED') {
+        buttons += `
+            <button class="btn btn-sm btn-outline-primary me-1" onclick="downloadDocument(${request.id})">
+                <i class="bi bi-download"></i>
+            </button>
+        `;
+    }
+    
+    if (request.status === 'PENDING') {
+        buttons += `
+            <button class="btn btn-sm btn-outline-danger" onclick="cancelRequest(${request.id})">
+                <i class="bi bi-x-circle"></i>
+            </button>
+        `;
+    }
+    
+    return buttons;
+}
+
+// 문서 다운로드
+async function downloadDocument(id) {
+    try {
+        const response = await fetch(`/document/download/${id}`);
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = response.headers.get('Content-Disposition').split('filename=')[1];
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+        } else {
+            showError('문서 다운로드 중 오류가 발생했습니다.');
+        }
+    } catch (error) {
+        showError('문서 다운로드 중 오류가 발생했습니다.');
+    }
+}
+
+// 신청 취소
+async function cancelRequest(id) {
+    if (await showConfirm('정말 이 신청을 취소하시겠습니까?')) {
+        try {
+            const response = await fetch(`/document/cancel/${id}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+                }
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+                showSuccess('신청이 취소되었습니다.');
+                loadMyRequests();
+            } else {
+                showError(result.message || '신청 취소 중 오류가 발생했습니다.');
+            }
+        } catch (error) {
+            showError('신청 취소 중 오류가 발생했습니다.');
+        }
+    }
+}
+
+// 날짜 포맷 함수
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    try {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('ko-KR', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } catch (e) {
+        console.error('Date formatting error:', e);
+        return dateStr;
+    }
+}
+
+// 알림 표시 함수
+function showError(message) {
+    // 기존 알림 제거
+    const existingAlert = document.querySelector('.alert');
+    if (existingAlert) {
+        existingAlert.remove();
+    }
+    
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+    alertDiv.role = 'alert';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    const container = document.querySelector('.container-fluid');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    // 3초 후 자동으로 닫기
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 3000);
+}
+
+// 문서 종류 이름 가져오기
+function getDocumentTypeName(type) {
+    for (const category in DOCUMENT_TYPES) {
+        if (DOCUMENT_TYPES[category][type]) {
+            return DOCUMENT_TYPES[category][type];
+        }
+    }
+    return type;
+}
+
+// 페이지 로드 시 신청 내역 로드
+document.addEventListener('DOMContentLoaded', function() {
+    loadMyRequests();
+    
+    // 재시도 버튼 추가
+    const container = document.querySelector('.container-fluid');
+    const firstCard = container.querySelector('.card');
+    
+    if (container && firstCard) {
+        const retryButton = document.createElement('button');
+        retryButton.className = 'btn btn-primary mb-3 d-none';
+        retryButton.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>다시 시도';
+        retryButton.onclick = loadMyRequests;
+        
+        // 에러 발생 시 재시도 버튼 표시
+        window.showRetryButton = function() {
+            retryButton.classList.remove('d-none');
+        };
+        
+        // 성공 시 재시도 버튼 숨김
+        window.hideRetryButton = function() {
+            retryButton.classList.add('d-none');
+        };
+        
+        container.insertBefore(retryButton, firstCard);
+    }
+});
+
+// 문서 내용 보기 함수 추가
+function viewDocument(doc) {
+    // 모달 요소 가져오기
+    const modal = new bootstrap.Modal(document.getElementById('viewDocumentModal'));
+    
+    // 문서 정보 표시
+    document.getElementById('viewRequestDate').textContent = formatDate(doc.request_date);
+    document.getElementById('viewDocumentType').textContent = doc.type_name || getDocumentTypeName(doc.type);
+    document.getElementById('viewStatus').innerHTML = `<span class="badge bg-${getStatusColor(doc.status)}">${getStatusName(doc.status)}</span>`;
+    document.getElementById('viewProcessDate').textContent = doc.process_date ? formatDate(doc.process_date) : '-';
+    document.getElementById('viewTitle').textContent = doc.title;
+    document.getElementById('viewContent').innerHTML = doc.content || '내용이 없습니다.';
+    document.getElementById('viewPurpose').textContent = doc.purpose || '-';
+    document.getElementById('viewSubmitTo').textContent = doc.submit_to || '-';
+    
+    // 모달 표시
+    modal.show();
+}
+</script>
+{% endblock %} 

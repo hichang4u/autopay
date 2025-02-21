@@ -268,59 +268,78 @@ function deleteSelectedRows() {
     updateSelectedCount();
 }
 
-// 숫자 포맷 함수 수정
-function formatNumber(num) {
-    if (num === null || num === undefined) return '0';
-    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-}
+// 공통 유틸리티 함수
+const PayrollUtils = {
+    formatNumber: function(number) {
+        return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    },
+    
+    unformatNumber: function(str) {
+        return parseInt(str.toString().replace(/,/g, '')) || 0;
+    },
 
-// 쉼표 제거 함수 추가
-function unformatNumber(str) {
-    return parseInt(str.replace(/,/g, '')) || 0;
-}
+    // 날짜 포맷팅
+    formatDateTime(dateStr) {
+        if (!dateStr) return '-';
+        const date = new Date(dateStr);
+        return new Intl.DateTimeFormat('ko-KR', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        }).format(date);
+    },
 
-// 자동계산 함수 수정 (공제 항목만)
+    // 상태 정규화
+    normalizeStatus(status) {
+        if (status.includes('임시') || status.includes('저장')) return 'TEMP_SAVE';
+        if (status === '완료') return 'PROC_CMPT';
+        if (status.includes('PDF')) return 'PDF_GEN';
+        if (status.includes('발송')) return 'MAIL_SENT';
+        return status;
+    }
+};
+
+// 자동계산 함수 개선
 function autoCalculate() {
     const modal = document.getElementById('generatePayrollModal');
     const rows = modal.querySelectorAll('tbody tr');
     
     rows.forEach(row => {
-        // 지급액 계 가져오기
-        const totalPaymentInput = row.querySelector('td:nth-child(10) input');
-        const totalPayment = unformatNumber(totalPaymentInput.value);
+        // 지급액 계산
+        const baseSalary = PayrollUtils.unformatNumber(row.querySelector('td:nth-child(6) input').value);
+        const positionAllowance = PayrollUtils.unformatNumber(row.querySelector('td:nth-child(7) input').value);
+        const mealAllowance = PayrollUtils.unformatNumber(row.querySelector('td:nth-child(8) input').value);
+        const carAllowance = PayrollUtils.unformatNumber(row.querySelector('td:nth-child(9) input').value);
         
-        // 국민연금 (4.5%)
+        const totalPayment = baseSalary + positionAllowance + mealAllowance + carAllowance;
+        row.querySelector('td:nth-child(10) input').value = PayrollUtils.formatNumber(totalPayment);
+        
+        // 공제액 계산
         const nationalPension = Math.round(totalPayment * 0.045 / 10) * 10;
-        row.querySelector('td:nth-child(13) input').value = formatNumber(nationalPension);
-        
-        // 건강보험 (3.545%)
         const healthInsurance = Math.round(totalPayment * 0.03545 / 10) * 10;
-        row.querySelector('td:nth-child(14) input').value = formatNumber(healthInsurance);
-        
-        // 장기요양보험 (건강보험료의 12.95%)
         const longTermCare = Math.round(healthInsurance * 0.1295 / 10) * 10;
-        row.querySelector('td:nth-child(15) input').value = formatNumber(longTermCare);
-        
-        // 고용보험 (0.9%)
         const employmentInsurance = Math.round(totalPayment * 0.009 / 10) * 10;
-        row.querySelector('td:nth-child(16) input').value = formatNumber(employmentInsurance);
-        
-        // 소득세 (6.78%)
         const incomeTax = Math.round(totalPayment * 0.0678 / 10) * 10;
-        row.querySelector('td:nth-child(11) input').value = formatNumber(incomeTax);
-        
-        // 지방소득세 (소득세의 10%)
         const localIncomeTax = Math.round(incomeTax * 0.1 / 10) * 10;
-        row.querySelector('td:nth-child(12) input').value = formatNumber(localIncomeTax);
         
-        // 공제액 계
+        // 공제액 입력
+        row.querySelector('td:nth-child(11) input').value = PayrollUtils.formatNumber(incomeTax);
+        row.querySelector('td:nth-child(12) input').value = PayrollUtils.formatNumber(localIncomeTax);
+        row.querySelector('td:nth-child(13) input').value = PayrollUtils.formatNumber(nationalPension);
+        row.querySelector('td:nth-child(14) input').value = PayrollUtils.formatNumber(healthInsurance);
+        row.querySelector('td:nth-child(15) input').value = PayrollUtils.formatNumber(longTermCare);
+        row.querySelector('td:nth-child(16) input').value = PayrollUtils.formatNumber(employmentInsurance);
+        
         const totalDeduction = nationalPension + healthInsurance + longTermCare + 
                              employmentInsurance + incomeTax + localIncomeTax;
-        row.querySelector('td:nth-child(17) input').value = formatNumber(totalDeduction);
+        row.querySelector('td:nth-child(17) input').value = PayrollUtils.formatNumber(totalDeduction);
         
         // 실수령액 계산
         const netAmount = totalPayment - totalDeduction;
-        row.querySelector('td:nth-child(18) input').value = formatNumber(netAmount);
+        row.querySelector('td:nth-child(18) input').value = PayrollUtils.formatNumber(netAmount);
     });
 }
 
@@ -421,18 +440,18 @@ async function savePayrollData() {
             position: inputs[4].value,
             
             // 지급 항목
-            base_salary: unformatNumber(inputs[5].value),
-            position_allowance: unformatNumber(inputs[6].value),
-            meal_allowance: unformatNumber(inputs[7].value),
-            car_allowance: unformatNumber(inputs[8].value),
+            base_salary: PayrollUtils.unformatNumber(inputs[5].value),
+            position_allowance: PayrollUtils.unformatNumber(inputs[6].value),
+            meal_allowance: PayrollUtils.unformatNumber(inputs[7].value),
+            car_allowance: PayrollUtils.unformatNumber(inputs[8].value),
             
             // 공제 항목
-            income_tax: unformatNumber(inputs[10].value),
-            local_income_tax: unformatNumber(inputs[11].value),
-            national_pension: unformatNumber(inputs[12].value),
-            health_insurance: unformatNumber(inputs[13].value),
-            long_term_care: unformatNumber(inputs[14].value),
-            employment_insurance: unformatNumber(inputs[15].value)
+            income_tax: PayrollUtils.unformatNumber(inputs[10].value),
+            local_income_tax: PayrollUtils.unformatNumber(inputs[11].value),
+            national_pension: PayrollUtils.unformatNumber(inputs[12].value),
+            health_insurance: PayrollUtils.unformatNumber(inputs[13].value),
+            long_term_care: PayrollUtils.unformatNumber(inputs[14].value),
+            employment_insurance: PayrollUtils.unformatNumber(inputs[15].value)
         };
         
         if (employee.employee_id && employee.employee_name) {
@@ -525,18 +544,18 @@ async function updatePayrollData(recordId) {
                 position: inputs[4].value,
                 
                 // 지급 항목
-                base_salary: unformatNumber(inputs[5].value),
-                position_allowance: unformatNumber(inputs[6].value),
-                meal_allowance: unformatNumber(inputs[7].value),
-                car_allowance: unformatNumber(inputs[8].value),
+                base_salary: PayrollUtils.unformatNumber(inputs[5].value),
+                position_allowance: PayrollUtils.unformatNumber(inputs[6].value),
+                meal_allowance: PayrollUtils.unformatNumber(inputs[7].value),
+                car_allowance: PayrollUtils.unformatNumber(inputs[8].value),
                 
                 // 공제 항목
-                income_tax: unformatNumber(inputs[10].value),
-                local_income_tax: unformatNumber(inputs[11].value),
-                national_pension: unformatNumber(inputs[12].value),
-                health_insurance: unformatNumber(inputs[13].value),
-                long_term_care: unformatNumber(inputs[14].value),
-                employment_insurance: unformatNumber(inputs[15].value)
+                income_tax: PayrollUtils.unformatNumber(inputs[10].value),
+                local_income_tax: PayrollUtils.unformatNumber(inputs[11].value),
+                national_pension: PayrollUtils.unformatNumber(inputs[12].value),
+                health_insurance: PayrollUtils.unformatNumber(inputs[13].value),
+                long_term_care: PayrollUtils.unformatNumber(inputs[14].value),
+                employment_insurance: PayrollUtils.unformatNumber(inputs[15].value)
             };
             employees.push(employee);
         });
@@ -796,25 +815,11 @@ function getStatusBadge(record) {
     
     let content = config.text;
     if (config.timestamp) {
-        content += `<br><small style="font-size: 0.75rem;">${formatDateTime(config.timestamp)}</small>`;
+        content += `<br><small style="font-size: 0.75rem;">${PayrollUtils.formatDateTime(config.timestamp)}</small>`;
     }
     
     badge.innerHTML = content;
     return badge.outerHTML;
-}
-
-// 날짜 포맷팅 함수 (하나로 통합)
-function formatDateTime(dateStr) {
-    if (!dateStr) return '-';
-    const date = new Date(dateStr);
-    return new Intl.DateTimeFormat('ko-KR', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-    }).format(date);
 }
 
 // 상태별 작업 버튼 생성 함수
@@ -922,8 +927,8 @@ async function loadPayrollList() {
                     <td>${record.pay_year_month} 급여</td>
                     <td>${record.employee_count}명</td>
                     <td>${getStatusBadge(record)}</td>
-                    <td>${formatDateTime(record.created_at)}</td>
-                    <td>${formatDateTime(record.updated_at)}</td>
+                    <td>${PayrollUtils.formatDateTime(record.created_at)}</td>
+                    <td>${PayrollUtils.formatDateTime(record.updated_at)}</td>
                     <td>${getActionButtons(record)}</td>
                 `;
                 tbody.appendChild(row);
@@ -985,10 +990,10 @@ async function viewPayrollDocuments(recordId) {
     }
 }
 
-// 이메일 재발송 함수
+// 이메일 재발송 함수 수정
 async function resendPayrollEmails(recordId) {
     const confirmResult = await showConfirm(
-        '급여명세서를 다시 송하시겠습니까?',
+        '급여명세서를 다시 발송하시겠습니까?',
         '이메일 재발송'
     );
     
@@ -1020,11 +1025,6 @@ async function resendPayrollEmails(recordId) {
     }
 }
 
-// 페이지 로드 시 데이터 조회
-document.addEventListener('DOMContentLoaded', () => {
-    loadPayrollList();
-});
-
 // 급여 상세 조회 함수
 async function viewPayrollDetail(recordId) {
     try {
@@ -1044,7 +1044,7 @@ async function viewPayrollDetail(recordId) {
             
             // 기본 정보 설정
             const payYearMonthInput = document.querySelector('#generatePayrollModal input[type="month"]');
-            const paymentDateInput = document.querySelector('#generatePayrollModal input[type="date"]').value;
+            const paymentDateInput = document.querySelector('#generatePayrollModal input[type="date"]');
             
             payYearMonthInput.value = result.data.pay_year_month || '';
             paymentDateInput.value = result.data.payment_date || '';
@@ -1079,23 +1079,23 @@ async function viewPayrollDetail(recordId) {
                         <td><input type="text" class="form-control form-control-sm" value="${detail.position || ''}" readonly></td>
                         
                         <!-- 지급 항목 -->
-                        <td><input type="text" class="form-control form-control-sm text-end payment-item" value="${formatNumber(detail.base_salary || 0)}" ${isEditable ? '' : 'readonly'}></td>
-                        <td><input type="text" class="form-control form-control-sm text-end payment-item" value="${formatNumber(detail.position_allowance || 0)}" ${isEditable ? '' : 'readonly'}></td>
-                        <td><input type="text" class="form-control form-control-sm text-end payment-item" value="${formatNumber(detail.meal_allowance || 0)}" ${isEditable ? '' : 'readonly'}></td>
-                        <td><input type="text" class="form-control form-control-sm text-end payment-item" value="${formatNumber(detail.car_allowance || 0)}" ${isEditable ? '' : 'readonly'}></td>
-                        <td><input type="text" class="form-control form-control-sm text-end" value="${formatNumber(totalPayment)}" readonly></td>
+                        <td><input type="text" class="form-control form-control-sm text-end payment-item" value="${PayrollUtils.formatNumber(detail.base_salary || 0)}" ${isEditable ? '' : 'readonly'}></td>
+                        <td><input type="text" class="form-control form-control-sm text-end payment-item" value="${PayrollUtils.formatNumber(detail.position_allowance || 0)}" ${isEditable ? '' : 'readonly'}></td>
+                        <td><input type="text" class="form-control form-control-sm text-end payment-item" value="${PayrollUtils.formatNumber(detail.meal_allowance || 0)}" ${isEditable ? '' : 'readonly'}></td>
+                        <td><input type="text" class="form-control form-control-sm text-end payment-item" value="${PayrollUtils.formatNumber(detail.car_allowance || 0)}" ${isEditable ? '' : 'readonly'}></td>
+                        <td><input type="text" class="form-control form-control-sm text-end" value="${PayrollUtils.formatNumber(totalPayment)}" readonly></td>
                         
                         <!-- 공제 항목 -->
-                        <td><input type="text" class="form-control form-control-sm text-end deduction-item" value="${formatNumber(detail.income_tax || 0)}" ${isEditable ? '' : 'readonly'}></td>
-                        <td><input type="text" class="form-control form-control-sm text-end deduction-item" value="${formatNumber(detail.local_income_tax || 0)}" ${isEditable ? '' : 'readonly'}></td>
-                        <td><input type="text" class="form-control form-control-sm text-end deduction-item" value="${formatNumber(detail.national_pension || 0)}" ${isEditable ? '' : 'readonly'}></td>
-                        <td><input type="text" class="form-control form-control-sm text-end deduction-item" value="${formatNumber(detail.health_insurance || 0)}" ${isEditable ? '' : 'readonly'}></td>
-                        <td><input type="text" class="form-control form-control-sm text-end deduction-item" value="${formatNumber(detail.long_term_care || 0)}" ${isEditable ? '' : 'readonly'}></td>
-                        <td><input type="text" class="form-control form-control-sm text-end deduction-item" value="${formatNumber(detail.employment_insurance || 0)}" ${isEditable ? '' : 'readonly'}></td>
-                        <td><input type="text" class="form-control form-control-sm text-end" value="${formatNumber(detail.total_deduction || 0)}" readonly></td>
+                        <td><input type="text" class="form-control form-control-sm text-end deduction-item" value="${PayrollUtils.formatNumber(detail.income_tax || 0)}" ${isEditable ? '' : 'readonly'}></td>
+                        <td><input type="text" class="form-control form-control-sm text-end deduction-item" value="${PayrollUtils.formatNumber(detail.local_income_tax || 0)}" ${isEditable ? '' : 'readonly'}></td>
+                        <td><input type="text" class="form-control form-control-sm text-end deduction-item" value="${PayrollUtils.formatNumber(detail.national_pension || 0)}" ${isEditable ? '' : 'readonly'}></td>
+                        <td><input type="text" class="form-control form-control-sm text-end deduction-item" value="${PayrollUtils.formatNumber(detail.health_insurance || 0)}" ${isEditable ? '' : 'readonly'}></td>
+                        <td><input type="text" class="form-control form-control-sm text-end deduction-item" value="${PayrollUtils.formatNumber(detail.long_term_care || 0)}" ${isEditable ? '' : 'readonly'}></td>
+                        <td><input type="text" class="form-control form-control-sm text-end deduction-item" value="${PayrollUtils.formatNumber(detail.employment_insurance || 0)}" ${isEditable ? '' : 'readonly'}></td>
+                        <td><input type="text" class="form-control form-control-sm text-end" value="${PayrollUtils.formatNumber(detail.total_deduction || 0)}" readonly></td>
                         
                         <!-- 실수령액 -->
-                        <td><input type="text" class="form-control form-control-sm text-end" value="${formatNumber((totalPayment || 0) - (detail.total_deduction || 0))}" readonly></td>
+                        <td><input type="text" class="form-control form-control-sm text-end" value="${PayrollUtils.formatNumber((totalPayment || 0) - (detail.total_deduction || 0))}" readonly></td>
                     `;
                     tbody.appendChild(row);
                     if (isEditable) {
@@ -1133,10 +1133,10 @@ async function viewPayrollDetail(recordId) {
     }
 }
 
-// 급여 데이터 삭제 함수
+// 급여 데이터 삭제 함수 수정
 async function deletePayroll(recordId) {
     const result = await Swal.fire({
-        title: '정말 삭��하시겠습니까?',
+        title: '정말 삭제하시겠습니까?',
         text: "삭제된 데이터는 복구할 수 없습니다.",
         icon: 'warning',
         showCancelButton: true,
@@ -1186,11 +1186,11 @@ function setupCalculations(row) {
     // 입력 필드 포맷팅 설정
     function setupInputFormat(input) {
         input.addEventListener('focus', function() {
-            this.value = unformatNumber(this.value);
+            this.value = PayrollUtils.unformatNumber(this.value);
         });
         
         input.addEventListener('blur', function() {
-            this.value = formatNumber(unformatNumber(this.value));
+            this.value = PayrollUtils.formatNumber(PayrollUtils.unformatNumber(this.value));
         });
     }
     
@@ -1202,9 +1202,9 @@ function setupCalculations(row) {
     function calculateTotalPayment() {
         let total = 0;
         paymentInputs.forEach(input => {
-            total += unformatNumber(input.value);
+            total += PayrollUtils.unformatNumber(input.value);
         });
-        totalPaymentInput.value = formatNumber(total);
+        totalPaymentInput.value = PayrollUtils.formatNumber(total);
         calculateNetPay();
     }
     
@@ -1212,17 +1212,17 @@ function setupCalculations(row) {
     function calculateTotalDeduction() {
         let total = 0;
         deductionInputs.forEach(input => {
-            total += unformatNumber(input.value);
+            total += PayrollUtils.unformatNumber(input.value);
         });
-        totalDeductionInput.value = formatNumber(total);
+        totalDeductionInput.value = PayrollUtils.formatNumber(total);
         calculateNetPay();
     }
     
     // 실수령액 계산
     function calculateNetPay() {
-        const totalPayment = unformatNumber(totalPaymentInput.value);
-        const totalDeduction = unformatNumber(totalDeductionInput.value);
-        netPayInput.value = formatNumber(totalPayment - totalDeduction);
+        const totalPayment = PayrollUtils.unformatNumber(totalPaymentInput.value);
+        const totalDeduction = PayrollUtils.unformatNumber(totalDeductionInput.value);
+        netPayInput.value = PayrollUtils.formatNumber(totalPayment - totalDeduction);
     }
     
     // 이벤트 스너 설정

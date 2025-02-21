@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * { margin: 0; padding: 0; text-indent: 0; box-sizing: border-box; }
+        @page {
+            size: A4;
+            margin: 0;
+        }
+        body {
+            background-color: white;
+            font-family: 'Malgun Gothic', sans-serif;
+            color: #2c3e50;
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto;
+            padding: 20mm;
+            position: relative;
+        }
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0.1;
+            z-index: -1;
+            width: 300px;
+        }
+        .watermark.error {
+            display: none;
+        }
+        h1 { 
+            color: #000; 
+            font-family: 'Malgun Gothic', sans-serif;
+            font-style: normal; 
+            font-weight: 700; 
+            font-size: 24pt;
+            text-align: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #000;
+        }
+        .header {
+            margin-bottom: 30px;
+            text-align: right;
+        }
+        .header p {
+            margin: 5px 0;
+            font-size: 11pt;
+        }
+        .info-section { 
+            margin: 15px 0;
+            padding: 15px;
+            border: 1.5px solid #000;
+            font-size: 11pt;
+            background-color: #f8fafc;
+        }
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        .info-table th, .info-table td {
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+        .info-table th {
+            width: 120px;
+            color: #666;
+            font-weight: 600;
+            background-color: #f8f9fa;
+        }
+        .content {
+            min-height: 200px;
+            margin: 30px 0;
+            line-height: 1.6;
+            font-size: 11pt;
+            white-space: pre-line;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 50px;
+            font-size: 11pt;
+            position: relative;
+        }
+        .company-name {
+            font-size: 20pt;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+        .seal-space {
+            width: 100px;
+            height: 100px;
+            margin: 20px auto;
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <p>문서번호: {{ document_number }}</p>
+        <p>발급일자: {{ process_date }}</p>
+    </div>
+
+    <h1>{{ title }}</h1>
+
+    <div class="info-section">
+        <table class="info-table">
+            <tr>
+                <th>신청자</th>
+                <td>{{ requester_name }}</td>
+                <th>신청일</th>
+                <td>{{ request_date }}</td>
+            </tr>
+            <tr>
+                <th>처리자</th>
+                <td>{{ processor_name }}</td>
+                <th>처리일</th>
+                <td>{{ process_date }}</td>
+            </tr>
+            {% if purpose %}
+            <tr>
+                <th>용도</th>
+                <td colspan="3">{{ purpose }}</td>
+            </tr>
+            {% endif %}
+            {% if submit_to %}
+            <tr>
+                <th>제출처</th>
+                <td colspan="3">{{ submit_to }}</td>
+            </tr>
+            {% endif %}
+        </table>
+    </div>
+
+    <div class="content">
+        {{ content | safe }}
+    </div>
+
+    <div class="footer">
+        <p>{{ process_date }}</p>
+        <div class="seal-space">
+            <!-- 직인 이미지가 추가될 공간 -->
+        </div>
+        <h2 class="company-name">(주)우리소프트</h2>
+    </div>
+</body>
+</html> 

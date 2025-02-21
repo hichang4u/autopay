@@ -37,7 +37,12 @@ def validate_payroll_data(data):
     if not errors:
         # 날짜 형식 검사
         try:
-            datetime.strptime(data['payment_date'], '%Y-%m-%d')
+            if not isinstance(data['payment_date'], str):
+                errors.append("지급일은 문자열 형식이어야 합니다.")
+            elif not re.match(r'^\d{4}-\d{2}-\d{2}$', data['payment_date']):
+                errors.append("지급일 형식이 올바르지 않습니다. (YYYY-MM-DD)")
+            else:
+                datetime.strptime(data['payment_date'], '%Y-%m-%d')
         except ValueError:
             errors.append("지급일 형식이 올바르지 않습니다. (YYYY-MM-DD)")
             
@@ -338,10 +343,10 @@ def get_payroll_list():
             'data': [{
                 'id': record.id,
                 'pay_year_month': record.pay_year_month,
-                'payment_date': record.payment_date.strftime('%Y-%m-%d'),
+                'payment_date': record.payment_date.strftime('%Y-%m-%d') if record.payment_date else None,
                 'status': record.status,
                 'employee_count': PayrollDetail.query.filter_by(record_id=record.id).count(),
-                'created_at': record.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'created_at': record.created_at.strftime('%Y-%m-%d %H:%M:%S') if record.created_at else None,
                 'created_by': record.created_by,
                 'updated_at': record.updated_at.strftime('%Y-%m-%d %H:%M:%S') if record.updated_at else None,
                 'updated_by': record.updated_by

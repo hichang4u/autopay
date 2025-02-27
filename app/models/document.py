@@ -21,6 +21,8 @@ class DocumentTemplate(db.Model):
     updated_at = db.Column(db.DateTime, onupdate=get_korea_time)
     updated_by = db.Column(db.String(50))
     is_active = db.Column(db.Boolean, default=True)
+    pdf_template = db.Column(db.String(255))
+    variables = db.Column(db.JSON)
 
     def to_dict(self):
         return {
@@ -31,6 +33,8 @@ class DocumentTemplate(db.Model):
             'description': self.description,
             'content': self.content,
             'style': self.style,
+            'pdf_template': self.pdf_template,
+            'variables': self.variables,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S'),
             'created_by': self.created_by,
             'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S') if self.updated_at else None,
@@ -41,30 +45,22 @@ class Document(db.Model):
     __tablename__ = 'documents'
     
     id = db.Column(db.Integer, primary_key=True)
-    document_number = db.Column(db.String(20), unique=True)  # YYYYMMDD-XXX 형식
+    document_number = db.Column(db.String(50), unique=True, nullable=False)
     category = db.Column(db.String(20), nullable=False)  # OFFICIAL, CERTIFICATE
     type = db.Column(db.String(50), nullable=False)  # OFFICIAL_NORMAL, CERT_EMPLOYMENT 등
     title = db.Column(db.String(200), nullable=False)
-    content = db.Column(db.Text)  # 공문 내용
-    purpose = db.Column(db.String(200))  # 증명서 용도
-    submit_to = db.Column(db.String(200))  # 증명서 제출처
-    form_data = db.Column(db.JSON)  # 템플릿 기반 입력 데이터
-    
+    content = db.Column(db.Text, nullable=False)
+    purpose = db.Column(db.Text)
+    submit_to = db.Column(db.String(100))
     template_id = db.Column(db.Integer, db.ForeignKey('document_templates.id'))
-    requester_id = db.Column(db.Integer, db.ForeignKey('user.id'))  # nullable로 변경
-    requester_email = db.Column(db.String(120))  # 비로그인 사용자용 이메일
-    processor_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    
-    status = db.Column(db.String(20), default='PENDING')  # PENDING, APPROVED, REJECTED, COMPLETED
-    request_date = db.Column(db.DateTime, nullable=False, default=get_korea_time)
+    status = db.Column(db.String(20), default='DRAFT')  # DRAFT, PENDING, APPROVED, REJECTED, COMPLETED
+    file_path = db.Column(db.String(255))
+    request_date = db.Column(db.DateTime, default=get_korea_time)
     process_date = db.Column(db.DateTime)
-    process_comment = db.Column(db.Text)
-    
-    file_path = db.Column(db.String(255))  # 생성된 PDF 파일 경로
-    preview_path = db.Column(db.String(255))  # 미리보기 파일 경로
+    requester_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    requester_email = db.Column(db.String(100))
+    processor_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     email_sent = db.Column(db.Boolean, default=False)
-    email_receive = db.Column(db.Boolean, default=True)
-    
     created_at = db.Column(db.DateTime, default=get_korea_time)
     updated_at = db.Column(db.DateTime, onupdate=get_korea_time)
     
@@ -75,6 +71,21 @@ class Document(db.Model):
 
     def to_dict(self):
         try:
+            template_variables = self.template.variables if self.template and self.template.variables else {}
+            
+            # variables 초기화
+            variables = {}
+            
+            # template_variables가 리스트인 경우 딕셔너리로 변환
+            if isinstance(template_variables, list):
+                logger.info(f"템플릿 변수가 리스트 형태로 저장되어 있습니다. 딕셔너리로 변환합니다.")
+                for var in template_variables:
+                    if isinstance(var, dict) and 'name' in var:
+                        variables[var['name']] = var.get('value', '')
+            # 딕셔너리인 경우 그대로 사용
+            elif isinstance(template_variables, dict):
+                variables = template_variables
+            
             return {
                 'id': self.id,
                 'document_number': self.document_number,
@@ -84,20 +95,20 @@ class Document(db.Model):
                 'content': self.content,
                 'purpose': self.purpose,
                 'submit_to': self.submit_to,
-                'form_data': self.form_data or {},
                 'status': self.status,
                 'request_date': self.request_date.strftime('%Y-%m-%d %H:%M:%S') if self.request_date else None,
                 'process_date': self.process_date.strftime('%Y-%m-%d %H:%M:%S') if self.process_date else None,
-                'process_comment': self.process_comment,
+                'reject_reason': variables.get('reject_reason'),
+                'recipient': variables.get('recipient'),
+                'reference': variables.get('reference'),
                 'requester_name': self.requester.name if self.requester else '비회원',
                 'requester_email': self.requester_email,
                 'processor_name': self.processor.name if self.processor else None,
                 'email_sent': self.email_sent,
-                'email_receive': self.email_receive,
-                'preview_path': self.preview_path,
                 'file_path': self.file_path,
                 'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None,
-                'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S') if self.updated_at else None
+                'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S') if self.updated_at else None,
+                'variables': variables
             }
         except Exception as e:
             logger.error(f"Document to_dict 변환 중 오류 발생: {str(e)}")

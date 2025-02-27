@@ -71,6 +71,16 @@
                     </div>
                 </div>
 
+                <!-- 템플릿 변수 입력 필드 추가 -->
+                <div class="row mb-3" id="variableInputs" style="display: none;">
+                    <div class="col-md-12">
+                        <label class="form-label">문서 정보 입력</label>
+                        <div id="variableFields">
+                            <!-- 변수 입력 필드가 동적으로 추가됩니다 -->
+                        </div>
+                    </div>
+                </div>
+
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <div class="form-floating">
@@ -217,6 +227,21 @@
         </div>
     </div>
 </div>
+
+<!-- 로딩 모달 추가 -->
+<div class="modal fade" id="loadingModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">로딩중...</span>
+                </div>
+                <h5 class="modal-title">문서 신청 중...</h5>
+                <p class="text-muted mb-0">잠시만 기다려주세요.</p>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -225,12 +250,87 @@
 <script>
 let editor;
 let currentTemplate = null;
+let loadingModalInstance = null; // 전역 모달 인스턴스 변수 추가
 
 // 문서 종류 데이터
 const documentTypes = JSON.parse('{{ document_types | tojson | safe }}');
 
+// 모달 관련 함수들
+function showLoadingModal() {
+    try {
+        console.log('로딩 모달 표시 시작');
+        if (!loadingModalInstance) {
+            loadingModalInstance = new bootstrap.Modal(document.getElementById('loadingModal'));
+        }
+        loadingModalInstance.show();
+        console.log('로딩 모달 표시 완료');
+    } catch (error) {
+        console.error('로딩 모달 표시 중 오류:', error);
+    }
+}
+
+function hideLoadingModal() {
+    try {
+        console.log('로딩 모달 숨김 시작');
+        
+        // 모달 인스턴스로 숨기기 시도
+        if (loadingModalInstance) {
+            loadingModalInstance.hide();
+            loadingModalInstance = null;
+        }
+        
+        // 백드롭 요소 제거
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) {
+            backdrop.remove();
+        }
+        
+        // body에서 모달 관련 클래스 및 스타일 제거
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('padding-right');
+        
+        // 모달 요소 직접 처리
+        const modalElement = document.getElementById('loadingModal');
+        if (modalElement) {
+            modalElement.classList.remove('show');
+            modalElement.style.display = 'none';
+            modalElement.setAttribute('aria-hidden', 'true');
+            modalElement.removeAttribute('aria-modal');
+            modalElement.removeAttribute('role');
+        }
+        
+        console.log('로딩 모달 숨김 완료');
+    } catch (error) {
+        console.error('로딩 모달 숨김 중 오류:', error);
+        
+        // 오류 발생 시 강제로 모달 관련 요소 정리
+        try {
+            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('padding-right');
+            
+            const modalElement = document.getElementById('loadingModal');
+            if (modalElement) {
+                modalElement.classList.remove('show');
+                modalElement.style.display = 'none';
+            }
+            
+            loadingModalInstance = null;
+        } catch (cleanupError) {
+            console.error('모달 강제 정리 중 오류:', cleanupError);
+        }
+    }
+}
+
 // CKEditor 초기화
 document.addEventListener('DOMContentLoaded', function() {
+    // 모달 인스턴스 초기화
+    try {
+        loadingModalInstance = new bootstrap.Modal(document.getElementById('loadingModal'));
+    } catch (error) {
+        console.error('모달 초기화 중 오류:', error);
+    }
+    
     ClassicEditor
         .create(document.querySelector('#editor'), {
             language: 'ko',
@@ -242,6 +342,8 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             console.error('에디터 초기화 중 오류:', error);
         });
+        
+    // 나머지 초기화 코드...
 });
 
 // 문서 분류 선택 시 문서 종류 업데이트
@@ -300,9 +402,11 @@ document.getElementById('type').addEventListener('change', async function() {
 document.getElementById('templateId').addEventListener('change', async function() {
     const templateId = this.value;
     const contentSection = document.getElementById('contentSection');
+    const variableInputs = document.getElementById('variableInputs');
     
     if (!templateId) {
         contentSection.style.display = 'none';
+        variableInputs.style.display = 'none';
         return;
     }
     
@@ -314,30 +418,129 @@ document.getElementById('templateId').addEventListener('change', async function(
             currentTemplate = result.data;
             editor.setData(result.data.content);
             contentSection.style.display = 'block';
+            
+            // 변수 입력 필드 생성
+            if (result.data.variables && result.data.variables.length > 0) {
+                const variableFields = document.getElementById('variableFields');
+                variableFields.innerHTML = '';
+                
+                result.data.variables.forEach(variable => {
+                    const field = document.createElement('div');
+                    field.className = 'mb-3';
+                    
+                    switch (variable.type) {
+                        case 'text':
+                            field.innerHTML = `
+                                <div class="form-floating">
+                                    <input type="text" class="form-control" 
+                                           id="var_${variable.name}"
+                                           name="var_${variable.name}"
+                                           ${variable.required ? 'required' : ''}>
+                                    <label for="var_${variable.name}">${variable.description}</label>
+                                </div>
+                            `;
+                            break;
+                        case 'date':
+                            field.innerHTML = `
+                                <div class="form-floating">
+                                    <input type="date" class="form-control"
+                                           id="var_${variable.name}"
+                                           name="var_${variable.name}"
+                                           ${variable.required ? 'required' : ''}>
+                                    <label for="var_${variable.name}">${variable.description}</label>
+                                </div>
+                            `;
+                            break;
+                        case 'number':
+                            field.innerHTML = `
+                                <div class="form-floating">
+                                    <input type="number" class="form-control"
+                                           id="var_${variable.name}"
+                                           name="var_${variable.name}"
+                                           ${variable.required ? 'required' : ''}>
+                                    <label for="var_${variable.name}">${variable.description}</label>
+                                </div>
+                            `;
+                            break;
+                        case 'textarea':
+                            field.innerHTML = `
+                                <div class="form-floating">
+                                    <textarea class="form-control"
+                                              id="var_${variable.name}"
+                                              name="var_${variable.name}"
+                                              style="height: 100px"
+                                              ${variable.required ? 'required' : ''}></textarea>
+                                    <label for="var_${variable.name}">${variable.description}</label>
+                                </div>
+                            `;
+                            break;
+                    }
+                    
+                    variableFields.appendChild(field);
+                });
+                
+                variableInputs.style.display = 'block';
+            }
         }
     } catch (error) {
         showError('템플릿 내용을 불러오는 중 오류가 발생했습니다.');
     }
 });
 
+// 템플릿 변수 값 수집
+function collectVariableValues() {
+    const variableInputs = document.getElementById('variableInputs');
+    if (!variableInputs || variableInputs.style.display === 'none') {
+        return {};
+    }
+
+    const values = {};
+    const inputs = variableInputs.querySelectorAll('input, textarea');
+    
+    inputs.forEach(input => {
+        if (input.id && input.id.startsWith('var_')) {
+            const variableName = input.id.replace('var_', '');
+            values[variableName] = input.value;
+        }
+    });
+    
+    return values;
+}
+
 // 문서 신청 처리
 document.getElementById('requestForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     
-    const formData = {
-        category: document.getElementById('category').value,
-        type: document.getElementById('type').value,
-        template_id: document.getElementById('templateId').value,
-        title: document.getElementById('title').value,
-        content: editor ? editor.getData() : '',
-        purpose: document.getElementById('purpose').value,
-        submitTo: document.getElementById('submitTo').value,
-        requestDate: document.getElementById('requestDate').value,
-        email: document.getElementById('email').value,
-        emailReceive: document.getElementById('emailReceive').checked
-    };
-
+    const submitButton = this.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    
     try {
+        // 폼 데이터 수집
+        const formData = {
+            category: document.getElementById('category').value,
+            type: document.getElementById('type').value,
+            title: document.getElementById('title').value,
+            content: editor ? editor.getData() : '',
+            purpose: document.getElementById('purpose').value,
+            submitTo: document.getElementById('submitTo').value,
+            requestDate: document.getElementById('requestDate').value,
+            email: document.getElementById('email').value,
+            emailReceive: document.getElementById('emailReceive').checked,
+            template_id: currentTemplate ? currentTemplate.id : null,
+            variables: collectVariableValues()
+        };
+        
+        // 필수 필드 검증
+        if (!formData.category || !formData.type || !formData.title || !formData.email || !formData.requestDate) {
+            showError('필수 항목을 모두 입력해주세요.');
+            submitButton.disabled = false;
+            return;
+        }
+        
+        // 로딩 모달 표시
+        showLoadingModal();
+        
+        // 서버에 요청 전송
         const response = await fetch('/document/request', {
             method: 'POST',
             headers: {
@@ -346,18 +549,36 @@ document.getElementById('requestForm').addEventListener('submit', async function
             },
             body: JSON.stringify(formData)
         });
-
+        
         const result = await response.json();
+        
+        // 로딩 모달 숨기기
+        hideLoadingModal();
+        
+        // 제출 버튼 활성화
+        submitButton.disabled = false;
+        
         if (result.success) {
             showSuccess('문서가 성공적으로 신청되었습니다.');
             this.reset();
-            editor.setData('');
+            if (editor) {
+                editor.setData('');
+            }
             document.getElementById('contentSection').style.display = 'none';
+            document.getElementById('variableInputs').style.display = 'none';
             loadMyRequests();
         } else {
             showError(result.message || '문서 신청 중 오류가 발생했습니다.');
         }
     } catch (error) {
+        console.error('문서 신청 중 오류:', error);
+        
+        // 로딩 모달 숨기기
+        hideLoadingModal();
+        
+        // 제출 버튼 활성화
+        submitButton.disabled = false;
+        
         showError('문서 신청 중 오류가 발생했습니다.');
     }
 });
@@ -395,7 +616,7 @@ async function loadMyRequests() {
                         <td class="text-center small">${req.type_name || getDocumentTypeName(req.type)}</td>
                         <td class="text-start">
                             <a href="#" class="text-decoration-none text-dark d-block text-truncate bg-light-hover rounded px-2 py-1" 
-                               onclick="viewDocument(${JSON.stringify(req).replace(/"/g, '&quot;')})"
+                               onclick="viewDocumentById(${req.id})"
                                title="${req.title}"
                                style="background-color: #f8f9fa;">
                                 ${req.title}
@@ -458,18 +679,18 @@ function getStatusName(status) {
 function getActionButtons(request) {
     let buttons = '';
     
-    if (request.status === 'COMPLETED') {
-        buttons += `
-            <button class="btn btn-sm btn-outline-primary me-1" onclick="downloadDocument(${request.id})">
-                <i class="bi bi-download"></i>
-            </button>
-        `;
-    }
-    
     if (request.status === 'PENDING') {
         buttons += `
             <button class="btn btn-sm btn-outline-danger" onclick="cancelRequest(${request.id})">
                 <i class="bi bi-x-circle"></i>
+            </button>
+        `;
+    }
+    
+    if (request.status === 'COMPLETED' && request.file_path) {
+        buttons += `
+            <button class="btn btn-sm btn-outline-info" onclick="previewPDF(${request.id})" title="PDF 미리보기">
+                <i class="bi bi-file-pdf"></i>
             </button>
         `;
     }
@@ -525,19 +746,24 @@ async function cancelRequest(id) {
 }
 
 // 날짜 포맷 함수
-function formatDate(dateStr) {
+function formatDate(dateStr, includeTime = false) {
     if (!dateStr) return '-';
     try {
         const date = new Date(dateStr);
-        return date.toLocaleDateString('ko-KR', {
+        const options = {
             year: 'numeric',
             month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    } catch (e) {
-        console.error('Date formatting error:', e);
+            day: '2-digit'
+        };
+        
+        if (includeTime) {
+            options.hour = '2-digit';
+            options.minute = '2-digit';
+        }
+        
+        return date.toLocaleDateString('ko-KR', options);
+    } catch (error) {
+        console.error('날짜 포맷 중 오류:', error);
         return dateStr;
     }
 }
@@ -622,6 +848,37 @@ function viewDocument(doc) {
     
     // 모달 표시
     modal.show();
+}
+
+// ID로 문서 조회 후 표시하는 함수 추가
+async function viewDocumentById(id) {
+    try {
+        const response = await fetch(`/document/user/${id}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        if (result.success) {
+            viewDocument(result.data);
+        } else {
+            showError(result.message || '문서 정보를 불러오는 중 오류가 발생했습니다.');
+        }
+    } catch (error) {
+        console.error('문서 정보 로드 중 오류:', error);
+        showError('문서 정보를 불러오는 중 오류가 발생했습니다.');
+    }
+}
+
+// PDF 미리보기 함수
+function previewPDF(documentId) {
+    const previewUrl = `/document/preview/${documentId}`;
+    const previewWindow = window.open(previewUrl, 'PDF Preview', 'width=1024,height=800');
+    if (previewWindow) {
+        previewWindow.focus();
+    } else {
+        alert('팝업이 차단되었습니다. 팝업 차단을 해제해주세요.');
+    }
 }
 </script>
 {% endblock %} 

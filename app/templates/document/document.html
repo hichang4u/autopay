@@ -246,17 +246,65 @@
 // 전역 변수로 문서 타입 데이터 선언
 const DOCUMENT_TYPES = {{ document_types | tojson | safe }};
 const DOCUMENT_CATEGORIES = {{ categories | tojson | safe }};
+let loadingModalInstance = null;
+
+function showLoadingModal() {
+    try {
+        const modalElement = document.getElementById('loadingModal');
+        if (!modalElement) return;
+        
+        if (!loadingModalInstance) {
+            loadingModalInstance = new bootstrap.Modal(modalElement);
+        }
+        loadingModalInstance.show();
+    } catch (error) {
+        console.error('로딩 모달 표시 중 오류:', error);
+    }
+}
+
+function hideLoadingModal() {
+    try {
+        if (loadingModalInstance) {
+            loadingModalInstance.hide();
+            loadingModalInstance = null;
+        }
+        
+        const modalElement = document.getElementById('loadingModal');
+        if (modalElement) {
+            modalElement.style.display = 'none';
+            modalElement.classList.remove('show');
+        }
+        
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) backdrop.remove();
+        
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('padding-right');
+    } catch (error) {
+        console.error('로딩 모달 숨김 중 오류:', error);
+        // 강제 정리
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('padding-right');
+        loadingModalInstance = null;
+    }
+}
 
 // 페이지 로드 시 초기화
 document.addEventListener('DOMContentLoaded', function() {
+    const modalElement = document.getElementById('loadingModal');
+    if (modalElement) {
+        loadingModalInstance = new bootstrap.Modal(modalElement);
+    }
+    
     // 문서 목록 로드
     loadDocuments();
     
     // 검색 폼 제출 이벤트
     const searchForm = document.getElementById('searchForm');
     if (searchForm) {
-        searchForm.addEventListener('submit', async function(e) {
-        e.preventDefault();
+        searchForm.addEventListener('submit', function(e) {
+            e.preventDefault();
             loadDocuments();
         });
     }
@@ -486,8 +534,7 @@ async function processDocument() {
 async function generatePDF(id) {
     try {
         // 로딩 모달 표시
-        const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
-        loadingModal.show();
+        showLoadingModal();
 
         const response = await fetch(`/document/generate-pdf/${id}`, {
             method: 'POST',
@@ -500,7 +547,7 @@ async function generatePDF(id) {
         const result = await response.json();
         
         // 로딩 모달 닫기
-        loadingModal.hide();
+        hideLoadingModal();
         
         if (result.success) {
             showSuccess('PDF가 생성되었습니다.');
@@ -509,9 +556,10 @@ async function generatePDF(id) {
             showError(result.message || 'PDF 생성 중 오류가 발생했습니다.');
         }
     } catch (error) {
+        console.error('PDF 생성 중 오류:', error);
+        
         // 로딩 모달 닫기
-        const loadingModal = bootstrap.Modal.getInstance(document.getElementById('loadingModal'));
-        if (loadingModal) loadingModal.hide();
+        hideLoadingModal();
         
         showError('PDF 생성 중 오류가 발생했습니다.');
     }
@@ -597,7 +645,7 @@ async function viewDocument(id) {
 
 function previewPDF(documentId) {
     const previewUrl = `/document/preview/${documentId}`;
-    const previewWindow = window.open(previewUrl, 'PDF Preview', 'width=800,height=600');
+    const previewWindow = window.open(previewUrl, 'PDF Preview', 'width=1024,height=800');
     if (previewWindow) {
         previewWindow.focus();
     } else {

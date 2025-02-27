@@ -2,6 +2,9 @@
 
 {% block content %}
 <div class="container-fluid">
+    <!-- CSRF 토큰 추가 -->
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
     <!-- 페이지 헤더 -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0 text-gray-800">템플릿 관리</h1>
@@ -71,8 +74,8 @@
 {% block scripts %}
 <script>
 // 전역 변수로 문서 타입 데이터 설정
-const DOCUMENT_TYPES = {{ types | tojson | safe }};
-const DOCUMENT_CATEGORIES = {{ categories | tojson | safe }};
+const DOCUMENT_TYPES = JSON.parse('{{ document_types | tojson | safe }}');
+const DOCUMENT_CATEGORIES = JSON.parse('{{ categories | tojson | safe }}');
 
 // 알림 함수
 function showAlert(message, type = 'success') {
@@ -190,7 +193,10 @@ async function deleteTemplate(id) {
     
     try {
         const response = await fetch(`/document/template/delete/${id}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+            }
         });
         
         const result = await response.json();

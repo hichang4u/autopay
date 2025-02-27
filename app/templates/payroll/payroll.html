@@ -1240,25 +1240,35 @@ function generatePDF(recordId) {
         return;
     }
 
+    // 로딩 표시
+    showLoading('PDF 생성 중...');
+
     fetch(`/generate-pdf/${recordId}`, {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken()
         }
     })
     .then(response => response.json())
     .then(data => {
+        // 로딩 닫기
+        Swal.close();
+        
         if (data.success) {
-            alert(data.message);
+            showSuccess(data.message);
             // PDF 생성 성공 후 목록 새로고침
             loadPayrollList();
         } else {
-            alert(data.message);
+            showError(data.message);
         }
     })
     .catch(error => {
+        // 로딩 닫기
+        Swal.close();
+        
         console.error('Error:', error);
-        alert('PDF 생성 중 오류가 발생했습니다.');
+        showError('PDF 생성 중 오류가 발생했습니다.');
     });
 }
 </script>

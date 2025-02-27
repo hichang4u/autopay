@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        /* Pretendard 폰트를 Base64로 임베딩하는 대신 시스템 폰트 사용 */
+        * { margin: 0; padding: 0; text-indent: 0; box-sizing: border-box; }
+        @page {
+            size: A4;
+            margin: 0;
+        }
+        body {
+            background-color: white;
+            font-family: 'Malgun Gothic', sans-serif;
+            color: #2c3e50;
+            width: 210mm;
+            height: 297mm;
+            margin: 0 auto;
+            padding: 20mm;
+            position: relative;
+            line-height: 1.6;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0.1;
+            z-index: -1;
+            width: 300px;
+        }
+        .header {
+            position: relative;
+            flex-shrink: 0;
+        }
+        .top-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .company-logo {
+            height: 40px;
+        }
+        .company-url {
+            font-size: 11pt;
+            color: #666;
+        }
+        .double-line {
+            height: 4px;
+            border-top: 2px solid #000;
+            border-bottom: 1px solid #000;
+            margin-bottom: 15px;
+        }
+        .company-title {
+            font-size: 18pt;
+            font-weight: 600;
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+        }
+        .company-contact {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 10pt;
+            color: #444;
+        }
+        .company-address {
+            flex: 2;
+        }
+        .company-numbers {
+            flex: 1;
+            text-align: right;
+        }
+        .dotted-line {
+            border-top: 1px dotted #999;
+            margin: 10px 0;
+        }
+        .header-line {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11pt;
+            margin-bottom: 10px;
+        }
+        .document-number {
+            flex: 1;
+            font-weight: 500;
+        }
+        .send-date {
+            text-align: right;
+            flex: 1;
+            font-weight: 500;
+        }
+        .recipient, .reference, .doc-title {
+            font-size: 11pt;
+            margin-bottom: 10px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+        }
+        .recipient span, .reference span, .doc-title span {
+            display: inline-block;
+            width: 45px;
+        }
+        .reference {
+            color: #666;
+        }
+        .title {
+            font-size: 22pt;
+            font-weight: 700;
+            text-align: center;
+            margin: 20px 0;
+            letter-spacing: 1px;
+            flex-shrink: 0;
+        }
+        .document-content {
+            flex: 1;
+            line-height: 1.8;
+            font-size: 11pt;
+            white-space: pre-line;
+            overflow: hidden;
+            max-height: calc(100% - 350px);
+        }
+        .footer {
+            text-align: right;
+            font-size: 11pt;
+            position: relative;
+            flex-shrink: 0;
+            margin-top: auto;
+            padding-top: 20px;
+        }
+        .company-info {
+            text-align: right;
+        }
+        .company-name {
+            font-size: 18pt;
+            font-weight: 700;
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+        }
+        .ceo-signature {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 10px;
+            font-size: 12pt;
+            font-weight: 600;
+        }
+        .seal-space {
+            width: 65px;
+            height: 65px;
+            position: relative;
+            display: inline-block;
+        }
+        .cc {
+            margin-top: 20px;
+            font-size: 10pt;
+            color: #666;
+        }
+        @media screen {
+            body {
+                border: 1px solid #ddd;
+                box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="top-header">
+            <!-- 이미지 URL 수정 -->
+            <img src="{{ static_url }}img/wrsoft-logo.svg" alt="우리소프트 로고" class="company-logo">
+            <div class="company-url">www.wrsoft.co.kr</div>
+        </div>
+        
+        <div class="double-line"></div>
+        
+        <div class="company-title">주식회사 우리소프트</div>
+        
+        <div class="company-contact">
+            <div class="company-address">
+                <div>(우)07209 서울특별시 영등포구 선유로 233</div>
+                <div>누리빌딩 3층</div>
+            </div>
+            <div class="company-numbers">
+                <div>(전화) 02-2057-8453</div>
+                <div>(팩스) 02-2057-8460</div>
+            </div>
+        </div>
+        
+        <div class="dotted-line"></div>
+        
+        <div class="header-line">
+            <div class="document-number">문서번호: {{ document_number }}</div>
+            <div class="send-date">{{ process_date }}</div>
+        </div>
+        <div class="recipient"><span>수신:</span> {% if variables.recipient %}{{ variables.recipient }}{% else %}-{% endif %}</div>
+        <div class="reference"><span>참조:</span> {% if variables.reference %}{{ variables.reference }}{% else %}-{% endif %}</div>
+        <div class="doc-title"><span>제목:</span> {% if variables.title %}{{ variables.title }}{% else %}{{ title }}{% endif %}</div>
+    </div>
+    
+    <div class="document-content">
+        {{ content | safe }}
+    </div>
+
+    <div class="footer">
+        <div class="company-info">
+            <h2 class="company-name">주식회사 우리소프트</h2>
+            <div class="ceo-signature">
+                <p>대표이사 &nbsp;&nbsp; 박 연 식</p>
+                <div class="seal-space">
+                    <!-- 이미지 URL 수정 -->
+                    <img src="{{ static_url }}img/ceo_seal.svg" alt="대표이사 직인" style="width: 100%; height: 100%;">
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

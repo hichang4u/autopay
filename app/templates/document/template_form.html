@@ -6,6 +6,59 @@
     .ck-editor__editable {
         min-height: 400px;
     }
+    
+    /* 미리보기 컨테이너를 감싸는 wrapper */
+    .preview-wrapper {
+        width: 100%;
+        background-color: #f8f9fa;
+        padding: 2rem;
+        border-radius: 0.5rem;
+        min-height: calc(297mm * 0.7);  /* A4 높이의 70% */
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+    }
+
+    /* 미리보기 iframe 스타일 */
+    .preview-frame {
+        width: 210mm;  /* A4 너비 */
+        height: 297mm;  /* A4 높이 */
+        border: none;
+        transform: scale(0.7);
+        transform-origin: top center;
+        background-color: white;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    /* 미리보기에서 직인 공간 표시 */
+    .seal-space {
+        border: 2px dashed #dee2e6;
+        width: 100px;
+        height: 100px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 20px auto;
+    }
+
+    .seal-space::after {
+        content: '직인';
+        color: #adb5bd;
+        font-size: 14px;
+    }
+
+    /* PDF 템플릿 스타일 재정의 */
+    #templatePreview * {
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    #templatePreview body {
+        width: 210mm !important;
+        min-height: 297mm !important;
+        padding: 20mm !important;
+        margin: 0 auto !important;
+    }
 </style>
 {% endblock %}
 
@@ -26,6 +79,10 @@
 
     <!-- CSRF 토큰 추가 -->
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    
+    {% if template and template.variables %}
+    <input type="hidden" id="templateVariables" value='{{ template.variables | tojson }}'>
+    {% endif %}
 
     <!-- 템플릿 폼 -->
     <div class="card">
@@ -85,21 +142,54 @@
 
                 <div class="row mb-3">
                     <div class="col-12">
+                        <label class="form-label">템플릿 내용</label>
+                        <textarea id="editor" name="content">{{ template.content if template else '' }}</textarea>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-12">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <label class="form-label mb-0">템플릿 내용</label>
-                            <div class="btn-group">
-                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="applyLayout('certificate')">
-                                    <i class="bi bi-card-text me-1"></i>증명서
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="applyLayout('official')">
-                                    <i class="bi bi-file-text me-1"></i>공문서
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="viewTemplateSample()">
-                                    <i class="bi bi-eye me-1"></i>샘플보기
-                                </button>
-                            </div>
+                            <label class="form-label mb-0">PDF 템플릿 선택</label>
                         </div>
-                        <div id="editor">{{ template.content if template else '' }}</div>
+                        <select class="form-select mb-3" id="pdfTemplate" name="pdfTemplate" required>
+                            <option value="default" selected>기본 템플릿</option>
+                            <option value="certificate" {% if template and template.pdf_template == 'certificate' %}selected{% endif %}>증명서 템플릿</option>
+                            <option value="official" {% if template and template.pdf_template == 'official' %}selected{% endif %}>공문서 템플릿</option>
+                        </select>
+                        
+                        <div class="preview-wrapper">
+                            <iframe id="previewFrame" class="preview-frame" srcdoc=""></iframe>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 변수 매핑 섹션 -->
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <label class="form-label">변수 매핑</label>
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="variableTable">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 200px">PDF 변수명</th>
+                                        <th>설명</th>
+                                        <th style="width: 150px">입력 타입</th>
+                                        <th style="width: 150px">매핑 변수</th>
+                                        <th style="width: 100px">필수여부</th>
+                                        <th style="width: 80px">관리</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- 변수 목록이 동적으로 추가됩니다 -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="addVariable()">
+                                <i class="bi bi-plus-circle me-1"></i>변수 추가
+                            </button>
+                        </div>
                     </div>
                 </div>
             </form>
@@ -129,6 +219,21 @@
         </div>
     </div>
 </div>
+
+<!-- 로딩 모달 추가 -->
+<div class="modal fade" id="loadingModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">저장 중...</span>
+                </div>
+                <h5 class="modal-title">템플릿 저장 중...</h5>
+                <p class="text-muted mb-0">잠시만 기다려주세요.</p>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -137,41 +242,148 @@
 <script>
 let editor;
 
-// 페이지 로드 시 초기화
+// 기존 템플릿 변수 로드
+function loadExistingTemplateVariables() {
+    try {
+        const variableTable = document.getElementById('variableTable');
+        const templateVariables = document.getElementById('templateVariables');
+        
+        if (!variableTable || !templateVariables) {
+            console.log('변수 테이블 또는 템플릿 변수 입력 필드를 찾을 수 없습니다.');
+            return;
+        }
+
+        console.log('템플릿 변수 데이터(raw):', templateVariables.value);
+        
+        // 빈 값 체크
+        if (!templateVariables.value || templateVariables.value.trim() === '') {
+            console.log('템플릿 변수가 비어있습니다.');
+            return;
+        }
+
+        // JSON 파싱 시도
+        let variables;
+        try {
+            variables = JSON.parse(templateVariables.value);
+            console.log('파싱된 템플릿 변수 데이터:', variables);
+        } catch (parseError) {
+            console.error('템플릿 변수 JSON 파싱 상세 오류:', parseError);
+            console.log('파싱 시도한 값:', templateVariables.value);
+        return;
+    }
+    
+        if (!Array.isArray(variables)) {
+            console.log('템플릿 변수가 배열이 아닙니다:', typeof variables);
+            variables = [];
+        }
+
+        // 기존 변수 행 제거
+        const tbody = variableTable.querySelector('tbody');
+    tbody.innerHTML = '';
+    
+        // 변수 추가
+        variables.forEach((variable, index) => {
+            if (!variable || typeof variable !== 'object') {
+                console.error('유효하지 않은 변수:', variable);
+                return;
+            }
+            
+            console.log(`변수 ${index + 1}:`, variable);
+            
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>
+                    <input type="text" class="form-control form-control-sm variable-name" 
+                           value="${variable.name ? variable.name.replace(/"/g, '&quot;') : ''}" required>
+                </td>
+                <td>
+                    <input type="text" class="form-control form-control-sm variable-description" 
+                           value="${variable.description ? variable.description.replace(/"/g, '&quot;') : ''}">
+                </td>
+                <td>
+                    <select class="form-select form-select-sm variable-type">
+                        <option value="text" ${variable.type === 'text' ? 'selected' : ''}>텍스트</option>
+                        <option value="number" ${variable.type === 'number' ? 'selected' : ''}>숫자</option>
+                        <option value="date" ${variable.type === 'date' ? 'selected' : ''}>날짜</option>
+                        <option value="select" ${variable.type === 'select' ? 'selected' : ''}>선택</option>
+                    </select>
+                </td>
+                <td>
+                    <input type="text" class="form-control form-control-sm variable-mapping" 
+                           value="${variable.mapping ? variable.mapping.replace(/"/g, '&quot;') : ''}" 
+                           placeholder="매핑할 변수명">
+                </td>
+                <td class="text-center">
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input variable-required" 
+                               ${variable.required ? 'checked' : ''}>
+                    </div>
+                </td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeVariable(this)">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+        
+        console.log('템플릿 변수 로드 완료');
+    } catch (error) {
+        console.error('템플릿 변수 로드 중 오류:', error);
+        showError('템플릿 변수를 불러오는 중 오류가 발생했습니다.');
+    }
+}
+
+// 템플릿 변수 초기화
+function initializeTemplateVariables() {
+                const templateVariables = document.getElementById('templateVariables');
+                if (templateVariables && templateVariables.value) {
+                    try {
+                        const variables = JSON.parse(templateVariables.value);
+            if (Array.isArray(variables) && variables.length > 0) {
+                            loadExistingTemplateVariables(variables);
+                console.log('기존 템플릿 변수 로드 완료:', variables);
+                        }
+                    } catch (error) {
+                        console.error('템플릿 변수 파싱 오류:', error);
+                    }
+                }
+}
+
+// 페이지 로드
 document.addEventListener('DOMContentLoaded', function() {
     // CKEditor 초기화
     ClassicEditor
         .create(document.querySelector('#editor'), {
             language: 'ko',
-            toolbar: {
-                items: [
-                    'heading',
-                    '|',
-                    'bold', 'italic', 'underline', 'strikethrough',
-                    '|',
-                    'alignment',
-                    '|',
-                    'bulletedList', 'numberedList',
-                    '|',
-                    'indent', 'outdent',
-                    '|',
-                    'link', 'insertTable',
-                    '|',
-                    'undo', 'redo'
-                ]
-            }
+            toolbar: ['heading', '|', 'bold', 'italic', 'link', 'bulletedList', 'numberedList', 'blockQuote'],
+            placeholder: '문서 내용을 입력하세요.'
         })
         .then(newEditor => {
             editor = newEditor;
-        })
-        .catch(error => {
-            console.error(error);
-        });
+            
+            // 템플릿 변수 초기화
+            loadExistingTemplateVariables();
+            
+            // PDF 템플릿 미리보기 표시
+                const pdfTemplate = document.getElementById('pdfTemplate');
+            if (pdfTemplate && pdfTemplate.value) {
+                loadTemplatePreview(pdfTemplate.value);
+                }
+            })
+            .catch(error => {
+            console.error('CKEditor 초기화 중 오류:', error);
+            });
 
-    // 문서 분류 선택 이벤트
-    document.getElementById('category').addEventListener('change', function() {
-        updateDocumentTypes(this.value);
-    });
+    // 문서 분류 변경 이벤트 리스너
+        const categorySelect = document.getElementById('category');
+        if (categorySelect) {
+            categorySelect.addEventListener('change', function() {
+            const category = this.value;
+            updateDocumentTypes(category);
+            });
+    }
 });
 
 // 문서 종류 업데이트
@@ -193,124 +405,364 @@ function updateDocumentTypes(category) {
     }
 }
 
-// 템플릿 저장
-async function saveTemplate() {
-    const formData = {
-        category: document.getElementById('category').value,
-        type: document.getElementById('type').value,
-        name: document.getElementById('name').value,
-        description: document.getElementById('description').value,
-        content: editor.getData()
-    };
+// 변수 추가 함수
+function addVariable() {
+    const tbody = document.querySelector('#variableTable tbody');
+    const row = document.createElement('tr');
+    row.innerHTML = `
+        <td>
+            <input type="text" class="form-control form-control-sm variable-name" required>
+        </td>
+        <td>
+            <input type="text" class="form-control form-control-sm variable-description">
+        </td>
+        <td>
+            <select class="form-select form-select-sm variable-type">
+                <option value="text">텍스트</option>
+                <option value="number">숫자</option>
+                <option value="date">날짜</option>
+                <option value="select">선택</option>
+            </select>
+        </td>
+        <td>
+            <input type="text" class="form-control form-control-sm variable-mapping" 
+                   placeholder="매핑할 변수명">
+        </td>
+        <td class="text-center">
+            <div class="form-check">
+                <input type="checkbox" class="form-check-input variable-required" checked>
+            </div>
+        </td>
+        <td class="text-center">
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeVariable(this)">
+                <i class="bi bi-trash"></i>
+            </button>
+        </td>
+    `;
+    tbody.appendChild(row);
+}
 
-    const templateId = document.getElementById('templateId')?.value;
-    const url = templateId ? 
-        `/document/template/update/${templateId}` : 
-        '/document/template/save';
+// 변수 제거 함수
+function removeVariable(button) {
+    button.closest('tr').remove();
+}
 
+// 템플릿 미리보기 로드 함수
+async function loadTemplatePreview(templateName) {
     try {
-        const response = await fetch(url, {
-            method: templateId ? 'PUT' : 'POST',
+        if (!templateName) {
+            console.warn('템플릿 이름이 제공되지 않았습니다.');
+            return;
+        }
+        
+        // 현재 편집기 내용 가져오기
+        const currentContent = editor ? editor.getData() : '';
+        
+        // 템플릿 타입에 따른 샘플 데이터
+        const sampleData = {
+            document_number: 'SAMPLE-2024-001',
+            title: templateName === 'certificate' ? '재직 증명서' : '공문서 제목',
+            process_date: '2024년 02월 21일',
+            form_data: {
+                name: '홍길동',
+                birth_date: '1990-01-01',
+                recipient: '수신자명',
+                reference: '참조사항',
+                cc: '참조자',
+                ceo_name: '김대표'
+            },
+            purpose: '제출용',
+            submit_to: '관공서',
+            content: currentContent || '이 문서는 미리보기용 샘플 템플릿입니다.'
+        };
+
+        console.log(`템플릿 미리보기 요청: ${templateName}`);
+        
+        // 서버에 미리보기 요청
+        const previewResponse = await fetch('/document/preview', {
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
             },
-            body: JSON.stringify(formData)
+            body: JSON.stringify({
+                template_name: templateName,
+                sample_data: sampleData
+            })
         });
 
+        if (!previewResponse.ok) {
+            throw new Error(`HTTP error! status: ${previewResponse.status}`);
+        }
+
+        const previewResult = await previewResponse.json();
+        if (previewResult.success) {
+            // iframe에 HTML 내용 설정
+            const previewFrame = document.getElementById('previewFrame');
+            if (previewFrame) {
+                previewFrame.srcdoc = previewResult.html;
+                console.log('미리보기 프레임 업데이트 완료');
+            } else {
+                console.warn('미리보기 프레임을 찾을 수 없습니다.');
+            }
+            
+            // 변수 파싱 및 테이블 업데이트
+            try {
+                const templateVariables = document.getElementById('templateVariables');
+                const existingVariables = templateVariables && templateVariables.value 
+                    ? JSON.parse(templateVariables.value) 
+                    : [];
+                
+                // 기존 변수가 없거나 강제 업데이트가 필요한 경우에만 변수 파싱
+                if (!existingVariables.length) {
+                    console.log('템플릿 변수 파싱 시작');
+                    const variables = parseTemplateVariables(previewResult.html);
+                    if (variables.length > 0) {
+                        updateVariableTable(variables);
+                        console.log(`${variables.length}개의 변수를 찾았습니다.`);
+                    } else {
+                        console.log('템플릿에서 변수를 찾을 수 없습니다.');
+                    }
+                } else {
+                    console.log('기존 변수가 있어 파싱을 건너뜁니다.');
+                }
+            } catch (variableError) {
+                console.error('변수 파싱 중 오류:', variableError);
+            }
+        } else {
+            throw new Error(previewResult.message || '미리보기 생성에 실패했습니다.');
+        }
+    } catch (error) {
+        console.error('템플릿 미리보기 로드 중 오류:', error);
+        showError(error.message || '템플릿 내용을 불러오는 중 오류가 발생했습니다.');
+    }
+}
+
+// PDF 템플릿 선택 시 이벤트
+document.getElementById('pdfTemplate').addEventListener('change', function() {
+    loadTemplatePreview(this.value);
+});
+
+// 템플릿에서 변수 파싱
+function parseTemplateVariables(content) {
+    // Jinja2 템플릿 변수 형식 ({{ 변수 }})
+    const jinja2Regex = /\{\{\s*([^}]+)\s*\}\}/g;
+    // 문자열 템플릿 변수 형식 (${변수})
+    const stringTemplateRegex = /\$\{([^}]+)\}/g;
+    
+    const variables = new Set();
+    let match;
+    
+    // Jinja2 형식 변수 파싱
+    while ((match = jinja2Regex.exec(content)) !== null) {
+        const variable = match[1].trim();
+        // 제어 구문(if, for 등) 제외
+        if (!variable.startsWith('if') && 
+            !variable.startsWith('for') && 
+            !variable.startsWith('else') && 
+            !variable.startsWith('endif') && 
+            !variable.startsWith('endfor')) {
+            // 필터 제거 (예: variable|filter)
+            const cleanVariable = variable.split('|')[0].trim();
+            variables.add(cleanVariable);
+        }
+    }
+    
+    // 문자열 템플릿 형식 변수 파싱
+    while ((match = stringTemplateRegex.exec(content)) !== null) {
+        const variable = match[1].trim();
+        variables.add(variable);
+    }
+    
+    console.log('파싱된 변수:', Array.from(variables));
+    return Array.from(variables);
+}
+
+// 변수 테이블 업데이트
+function updateVariableTable(variables) {
+    const tbody = document.querySelector('#variableTable tbody');
+    const templateVariables = document.getElementById('templateVariables');
+    
+    // 기존 변수 가져오기
+    let existingVariables = [];
+    if (templateVariables && templateVariables.value) {
+        try {
+            existingVariables = JSON.parse(templateVariables.value);
+        } catch (error) {
+            console.error('기존 변수 파싱 오류:', error);
+        }
+    }
+    
+    // 기존 변수 맵 생성 (변수명 -> 변수 객체)
+    const existingVariableMap = {};
+    existingVariables.forEach(variable => {
+        existingVariableMap[variable.name] = variable;
+    });
+    
+    // 새 변수와 기존 변수 병합
+    const mergedVariables = [];
+    variables.forEach(variableName => {
+        if (existingVariableMap[variableName]) {
+            // 기존 변수가 있으면 그대로 사용
+            mergedVariables.push(existingVariableMap[variableName]);
+        } else {
+            // 새 변수 추가
+            mergedVariables.push({
+                name: variableName,
+                description: '',
+                required: true
+            });
+        }
+    });
+    
+    // 변수 테이블 업데이트
+    tbody.innerHTML = '';
+    mergedVariables.forEach(variable => {
+        addVariableRow(variable.name, variable.description, variable.required);
+    });
+    
+    // 변수 정보 저장
+    templateVariables.value = JSON.stringify(mergedVariables);
+    console.log(`변수 테이블 업데이트 완료: ${mergedVariables.length}개 변수`);
+}
+
+// 변수 행 추가 함수
+function addVariableRow(name, description = '', required = true, type = 'text', mapping = '') {
+    const tbody = document.querySelector('#variableTable tbody');
+    const row = document.createElement('tr');
+    row.innerHTML = `
+        <td>
+            <input type="text" class="form-control form-control-sm variable-name" 
+                   value="${name}" readonly>
+        </td>
+        <td>
+            <input type="text" class="form-control form-control-sm variable-description" 
+                   placeholder="변수 설명" value="${description || ''}" required>
+        </td>
+        <td>
+            <select class="form-select form-select-sm variable-type">
+                <option value="text" ${type === 'text' ? 'selected' : ''}>텍스트</option>
+                <option value="date" ${type === 'date' ? 'selected' : ''}>날짜</option>
+                <option value="number" ${type === 'number' ? 'selected' : ''}>숫자</option>
+                <option value="textarea" ${type === 'textarea' ? 'selected' : ''}>여러 줄 텍스트</option>
+            </select>
+        </td>
+        <td>
+            <input type="text" class="form-control form-control-sm variable-mapping" 
+                   placeholder="매핑할 변수명" value="${mapping || ''}" required>
+        </td>
+        <td class="text-center">
+            <div class="form-check">
+                <input type="checkbox" class="form-check-input variable-required" ${required ? 'checked' : ''}>
+            </div>
+        </td>
+        <td class="text-center">
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeVariable(this)">
+                <i class="bi bi-trash"></i>
+            </button>
+        </td>
+    `
+}
+
+// 템플릿 저장
+async function saveTemplate() {
+    try {
+        // 필수 필드 검증
+        const category = document.getElementById('category').value;
+        const type = document.getElementById('type').value;
+        const name = document.getElementById('name').value;
+        const description = document.getElementById('description').value;
+        const content = editor.getData();
+        const pdfTemplate = document.getElementById('pdfTemplate').value;
+        
+        if (!category || !type || !name || !content || !pdfTemplate) {
+            showError('필수 항목을 모두 입력해주세요.');
+            return;
+        }
+        
+        // 변수 정보 수집
+        const variables = [];
+        document.querySelectorAll('#variableTable tbody tr').forEach((row, index) => {
+            const variable = {
+                name: row.querySelector('.variable-name').value,
+                description: row.querySelector('.variable-description').value,
+                type: row.querySelector('.variable-type').value,
+                mapping: row.querySelector('.variable-mapping').value,
+                required: row.querySelector('.variable-required').checked
+            };
+            variables.push(variable);
+            console.log(`저장할 변수 ${index + 1}:`, variable);
+        });
+        
+        console.log('저장할 전체 변수 데이터:', variables);
+        
+        // 로딩 모달 표시
+        const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+        loadingModal.show();
+        
+        const templateId = document.getElementById('templateId')?.value;
+        const url = templateId 
+            ? `/document/template/update/${templateId}`
+            : '/document/template/save';
+        const method = templateId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+            },
+            body: JSON.stringify({
+                category,
+                type,
+                name,
+                description,
+                content,
+                pdf_template: pdfTemplate,
+                variables
+            })
+        });
+        
         const result = await response.json();
+        loadingModal.hide();
+        
         if (result.success) {
             showSuccess('템플릿이 저장되었습니다.');
-            window.location.href = '{{ url_for("document.template_list") }}';
+            setTimeout(() => {
+                window.location.href = '/document/template/list';
+            }, 1500);
         } else {
             showError(result.message || '템플릿 저장에 실패했습니다.');
         }
     } catch (error) {
+        console.error('템플릿 저장 중 오류:', error);
         showError('템플릿 저장 중 오류가 발생했습니다.');
+        const loadingModal = bootstrap.Modal.getInstance(document.getElementById('loadingModal'));
+        if (loadingModal) loadingModal.hide();
     }
 }
 
-// 레이아웃 적용
-function applyLayout(type) {
-    const layouts = {
-        certificate: `
-            <div style="width: 210mm; min-height: 297mm; padding: 20mm; margin: 0 auto; background: white;">
-                <div style="text-align: center; margin-bottom: 50px;">
-                    <h1 style="font-size: 30px; margin: 30px 0;">증 명 서</h1>
-                </div>
-                
-                <table style="width: 100%; border-collapse: collapse; margin-bottom: 50px;">
-                    <tr>
-                        <td style="width: 100px; padding: 10px;">성명</td>
-                        <td style="padding: 10px; border-bottom: 1px solid #ddd;">\${name}</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 10px;">생년월일</td>
-                        <td style="padding: 10px; border-bottom: 1px solid #ddd;">\${birth_date}</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 10px;">주소</td>
-                        <td style="padding: 10px; border-bottom: 1px solid #ddd;">\${address}</td>
-                    </tr>
-                </table>
-                
-                <div style="text-align: center; margin: 50px 0;">
-                    <p style="font-size: 18px;">위와 같이 증명합니다.</p>
-                </div>
-                
-                <div style="text-align: center; margin-top: 100px;">
-                    <p>\${issue_date}</p>
-                    <div style="margin-top: 50px;">
-                        <h2 style="font-size: 24px; margin-bottom: 20px;">(주)우리소프트</h2>
-                    </div>
-                </div>
-            </div>
-        `,
-        official: `
-            <div style="width: 210mm; min-height: 297mm; padding: 20mm; margin: 0 auto; background: white;">
-                <div style="text-align: right; margin-bottom: 50px;">
-                    <p>문서번호: \${doc_number}</p>
-                    <p>시행일자: \${issue_date}</p>
-                </div>
-                
-                <h1 style="text-align: center; font-size: 24px; margin-bottom: 50px;">공 문</h1>
-                
-                <div style="margin-bottom: 30px;">
-                    <p>수신: \${recipient}</p>
-                    <p>참조: \${reference}</p>
-                </div>
-                
-                <h2 style="text-align: center; font-size: 20px; margin: 30px 0;">제목: \${title}</h2>
-                
-                <div style="min-height: 200px; margin: 30px 0;">
-                    \${content}
-                </div>
-                
-                <div style="text-align: center; margin-top: 50px;">
-                    <h2 style="font-size: 24px; margin-bottom: 20px;">(주)우리소프트</h2>
-                </div>
-            </div>
-        `
-    };
-
-    if (layouts[type]) {
-        editor.setData(layouts[type]);
-    }
+// 알림 함수
+function showSuccess(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-success alert-dismissible fade show';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    document.querySelector('.container-fluid').insertBefore(alertDiv, document.querySelector('.container-fluid').firstChild);
+    setTimeout(() => alertDiv.remove(), 3000);
 }
 
-// 템플릿 샘플 보기
-function viewTemplateSample() {
-    const category = document.getElementById('category').value;
-    const type = document.getElementById('type').value;
-    
-    if (!category || !type) {
-        showWarning('먼저 문서 분류와 종류를 선택해주세요.');
-        return;
-    }
-    
-    // 샘플 모달 표시
-    const modal = new bootstrap.Modal(document.getElementById('templateSampleModal'));
-    modal.show();
+function showError(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    document.querySelector('.container-fluid').insertBefore(alertDiv, document.querySelector('.container-fluid').firstChild);
+    setTimeout(() => alertDiv.remove(), 3000);
 }
 </script>
 {% endblock %} 

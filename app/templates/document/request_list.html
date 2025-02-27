@@ -173,9 +173,6 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
-                <button type="button" class="btn btn-primary" id="modalDownloadBtn" style="display: none;">
-                    <i class="bi bi-download me-1"></i>다운로드
-                </button>
             </div>
         </div>
     </div>
@@ -224,58 +221,63 @@ async function loadDocuments() {
         const status = document.getElementById('searchStatus').value;
         const keyword = document.getElementById('searchKeyword').value;
         
-        const params = new URLSearchParams();
-        if (category) params.append('category', category);
-        if (status) params.append('status', status);
-        if (keyword) params.append('keyword', keyword);
+        let url = '/document/list?';
+        if (category) url += `category=${category}&`;
+        if (status) url += `status=${status}&`;
+        if (keyword) url += `keyword=${keyword}&`;
         
-        const response = await fetch(`/document/search?${params.toString()}`);
+        const response = await fetch(url);
         const result = await response.json();
         
         if (result.success) {
-            updateCounts(result.counts);
-            updateTable(result.data);
+            const tbody = document.querySelector('#documentTable tbody');
+            tbody.innerHTML = '';
+            
+            if (result.data.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="text-center py-4">
+                            문서 신청 내역이 없습니다.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            result.data.forEach((doc, index) => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${doc.document_number ? `<span class="badge bg-light text-dark" style="font-size: 0.85em; font-family: monospace;">${doc.document_number}</span>` : '-'}</td>
+                        <td>${formatDate(doc.request_date)}</td>
+                        <td>${getDocumentTypeName(doc.type)}</td>
+                        <td>
+                            <a href="#" class="text-decoration-none text-dark" onclick="viewDocument(${doc.id})">
+                                ${doc.title}
+                            </a>
+                        </td>
+                        <td>
+                            <span class="badge bg-${getStatusColor(doc.status)}">
+                                ${getStatusName(doc.status)}
+                            </span>
+                        </td>
+                        <td>${doc.process_date ? formatDate(doc.process_date) : '-'}</td>
+                        <td>${getActionButtons(doc)}</td>
+                    </tr>
+                `;
+            });
+            
+            // 상태별 카운트 업데이트
+            document.getElementById('pendingCount').textContent = result.counts.PENDING || 0;
+            document.getElementById('approvedCount').textContent = result.counts.APPROVED || 0;
+            document.getElementById('completedCount').textContent = result.counts.COMPLETED || 0;
+            document.getElementById('rejectedCount').textContent = result.counts.REJECTED || 0;
         } else {
             showError(result.message || '문서 목록을 불러오는 중 오류가 발생했습니다.');
         }
     } catch (error) {
         showError('문서 목록을 불러오는 중 오류가 발생했습니다.');
     }
-}
-
-// 상태별 건수 업데이트
-function updateCounts(counts) {
-    document.getElementById('pendingCount').textContent = counts.pending;
-    document.getElementById('approvedCount').textContent = counts.approved;
-    document.getElementById('completedCount').textContent = counts.completed;
-    document.getElementById('rejectedCount').textContent = counts.rejected;
-}
-
-// 테이블 업데이트
-function updateTable(documents) {
-    const tbody = document.querySelector('#documentTable tbody');
-    tbody.innerHTML = '';
-    
-    documents.forEach((doc, index) => {
-        tbody.innerHTML += `
-            <tr>
-                <td>${index + 1}</td>
-                <td>${doc.document_number || '-'}</td>
-                <td>${formatDate(doc.request_date)}</td>
-                <td>${getDocumentTypeName(doc.type)}</td>
-                <td>${doc.title}</td>
-                <td>
-                    <span class="badge bg-${getStatusColor(doc.status)}">
-                        ${getStatusName(doc.status)}
-                    </span>
-                </td>
-                <td>${doc.process_date ? formatDate(doc.process_date) : '-'}</td>
-                <td>
-                    ${getActionButtons(doc)}
-                </td>
-            </tr>
-        `;
-    });
 }
 
 // 상태에 따른 배지 색상
@@ -329,8 +331,8 @@ function getActionButtons(doc) {
     
     if (doc.status === 'COMPLETED' && doc.file_path) {
         buttons += `
-            <button class="btn btn-sm btn-outline-success" onclick="downloadDocument(${doc.id})">
-                <i class="bi bi-download"></i>
+            <button class="btn btn-sm btn-outline-info" onclick="previewPDF(${doc.id})" title="PDF 미리보기">
+                <i class="bi bi-file-pdf"></i>
             </button>
         `;
     }
@@ -357,15 +359,6 @@ async function viewDocument(id) {
             document.getElementById('modalRequestDate').textContent = formatDate(doc.request_date);
             document.getElementById('modalTitle').textContent = doc.title;
             document.getElementById('modalComment').textContent = doc.process_comment || '-';
-            
-            // 다운로드 버튼 표시 여부
-            const downloadBtn = document.getElementById('modalDownloadBtn');
-            if (doc.status === 'COMPLETED' && doc.file_path) {
-                downloadBtn.style.display = 'block';
-                downloadBtn.onclick = () => downloadDocument(doc.id);
-            } else {
-                downloadBtn.style.display = 'none';
-            }
             
             const modal = new bootstrap.Modal(document.getElementById('documentModal'));
             modal.show();
@@ -421,28 +414,6 @@ async function processDocument() {
     }
 }
 
-// 문서 다운로드
-async function downloadDocument(id) {
-    try {
-        const response = await fetch(`/document/download/${id}`);
-        if (response.ok) {
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = response.headers.get('Content-Disposition').split('filename=')[1];
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            a.remove();
-        } else {
-            showError('문서 다운로드 중 오류가 발생했습니다.');
-        }
-    } catch (error) {
-        showError('문서 다운로드 중 오류가 발생했습니다.');
-    }
-}
-
 // 날짜 포맷
 function formatDate(dateStr) {
     const date = new Date(dateStr);
@@ -463,5 +434,16 @@ document.getElementById('searchForm').addEventListener('submit', function(e) {
 
 // 페이지 로드 시 문서 목록 로드
 document.addEventListener('DOMContentLoaded', loadDocuments);
+
+// PDF 미리보기 함수
+function previewPDF(documentId) {
+    const previewUrl = `/document/preview/${documentId}`;
+    const previewWindow = window.open(previewUrl, 'PDF Preview', 'width=1024,height=800');
+    if (previewWindow) {
+        previewWindow.focus();
+    } else {
+        alert('팝업이 차단되었습니다. 팝업 차단을 해제해주세요.');
+    }
+}
 </script>
 {% endblock %} 

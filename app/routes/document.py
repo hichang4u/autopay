@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, current_app, send_file, url_for, session, render_template_string
+from flask import Blueprint, render_template, request, jsonify, current_app, send_file, url_for, session, render_template_string, flash, redirect
 from flask_login import login_required, current_user
 from app import db
 from app.models.document import Document, DocumentTemplate, DocumentHistory
@@ -17,6 +17,14 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 import sys
 import traceback
+import pytz
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+import re
 
 # 로깅 설정
 logging.basicConfig(
@@ -28,6 +36,11 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# 한국 시간 가져오기
+def get_korea_time():
+    """한국 시간을 반환합니다."""
+    return datetime.now(pytz.timezone('Asia/Seoul'))
 
 # 문서 분류 및 종류 정의
 DOCUMENT_CATEGORIES = {
@@ -249,116 +262,63 @@ def my_requests():
         }), 500
 
 # 문서 목록 조회
+@document.route('/document/list')
 @document.route('/document/list/search')
-@login_required
-@admin_required
-def document_list():
+def document_list_api():
+    """문서 목록 API"""
     try:
-        logger.debug("문서 목록 조회 시작")
-        
-        # 페이지네이션 파라미터
-        page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 20, type=int)
-        
-        # 필터링 파라미터
-        status = request.args.get('status')
+        # 검색 조건
         category = request.args.get('category')
+        status = request.args.get('status')
         keyword = request.args.get('keyword')
         
         # 기본 쿼리
         query = Document.query
         
-        # 필터 적용
-        if status:
-            query = query.filter(Document.status == status)
+        # 검색 조건 적용
         if category:
             query = query.filter(Document.category == category)
+        if status:
+            query = query.filter(Document.status == status)
         if keyword:
-            query = query.filter(
-                db.or_(
-                    Document.title.ilike(f'%{keyword}%'),
-                    Document.document_number.ilike(f'%{keyword}%')
-                )
-            )
+            query = query.filter(Document.title.like(f'%{keyword}%'))
         
-        # 정렬 (최신순)
-        query = query.order_by(Document.request_date.desc())
+        # 관리자가 아닌 경우 본인 문서만 조회
+        if not current_user.is_authenticated or not current_user.is_admin:
+            if current_user.is_authenticated:
+                query = query.filter(Document.requester_id == current_user.id)
+            elif 'email' in session:
+                query = query.filter(Document.requester_email == session['email'])
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': '로그인이 필요합니다.'
+                }), 401
         
-        try:
-            # 페이지네이션 적용
-            pagination = query.paginate(page=page, per_page=per_page, error_out=False)
-            documents = pagination.items
-            logger.debug(f"조회된 문서 수: {len(documents)}개")
-        except Exception as e:
-            logger.error(f"페이지네이션 처리 중 오류: {str(e)}")
-            logger.error(traceback.format_exc())
-            raise
+        # 최신순 정렬
+        documents = query.order_by(Document.request_date.desc()).all()
         
-        # 문서 목록 변환
-        doc_list = []
-        for doc in documents:
-            try:
-                logger.debug(f"문서 {doc.id} 변환 시작")
-                doc_dict = doc.to_dict()
-                
-                if doc_dict and 'error' not in doc_dict:
-                    # 문서 종류 이름 추가
-                    doc_type_name = DOCUMENT_TYPES.get(doc.category, {}).get(doc.type, doc.type)
-                    doc_dict['type_name'] = doc_type_name
-                    doc_list.append(doc_dict)
-                    logger.debug(f"문서 {doc.id} 변환 완료")
-                else:
-                    logger.warning(f"문서 {doc.id}의 변환 결과가 유효하지 않음: {doc_dict}")
-            except Exception as e:
-                logger.error(f"문서 {doc.id} 변환 중 오류: {str(e)}")
-                logger.error(traceback.format_exc())
-                continue
+        # 상태별 카운트
+        counts = {
+            'PENDING': Document.query.filter_by(status='PENDING').count(),
+            'APPROVED': Document.query.filter_by(status='APPROVED').count(),
+            'REJECTED': Document.query.filter_by(status='REJECTED').count(),
+            'COMPLETED': Document.query.filter_by(status='COMPLETED').count()
+        }
         
-        # 상태별 건수
-        try:
-            counts = {
-                'pending': Document.query.filter_by(status='PENDING').count(),
-                'approved': Document.query.filter_by(status='APPROVED').count(),
-                'completed': Document.query.filter_by(status='COMPLETED').count(),
-                'rejected': Document.query.filter_by(status='REJECTED').count(),
-                'canceled': Document.query.filter_by(status='CANCELED').count()
-            }
-            logger.debug(f"상태별 건수: {counts}")
-        except Exception as e:
-            logger.error(f"상태별 건수 집계 중 오류: {str(e)}")
-            logger.error(traceback.format_exc())
-            counts = {'pending': 0, 'approved': 0, 'completed': 0, 'rejected': 0, 'canceled': 0}
-        
-        logger.info(f"문서 목록 조회 완료 (총 {len(doc_list)}개)")
+        # 결과 반환
         return jsonify({
             'success': True,
-            'data': doc_list,
-            'counts': counts,
-            'pagination': {
-                'page': page,
-                'per_page': per_page,
-                'total': pagination.total,
-                'pages': pagination.pages
-            }
+            'data': [doc.to_dict() for doc in documents],
+            'counts': counts
         })
         
     except Exception as e:
-        error_msg = f"문서 목록 조회 중 오류 발생: {str(e)}"
-        logger.error(error_msg)
-        logger.error(traceback.format_exc())
-        
-        if current_app.debug:
-            error_details = {
-                'error': str(e),
-                'traceback': traceback.format_exc()
-            }
-        else:
-            error_details = None
-            
+        logger.error(f"문서 목록 조회 중 오류 발생: {str(e)}")
         return jsonify({
             'success': False,
             'message': '문서 목록을 불러오는 중 오류가 발생했습니다.',
-            'error_details': error_details
+            'error_details': str(e)
         }), 500
 
 # 문서 승인 처리
@@ -382,17 +342,29 @@ def approve_document(id):
         doc.process_date = get_korea_time()
         doc.process_comment = data.get('comment')
         
-        # 문서 번호 생성 (YYYYMMDD-001 형식)
-        today = get_korea_time().strftime('%Y%m%d')
-        last_doc = Document.query.filter(
-            Document.document_number.like(f'{today}-%')
+        # 문서 번호 생성 (제YYYY-MMDD순번두자리호 형식)
+        now = get_korea_time()
+        year = now.strftime('%Y')
+        month_day = now.strftime('%m%d')
+        
+        # 오늘 생성된 문서 중 가장 큰 번호 찾기
+        today_prefix = f'제{year}-{month_day}'
+        latest_doc = Document.query.filter(
+            Document.document_number.like(f'{today_prefix}%')
         ).order_by(Document.document_number.desc()).first()
         
-        if last_doc and last_doc.document_number:
-            last_num = int(last_doc.document_number.split('-')[1])
-            doc.document_number = f'{today}-{str(last_num + 1).zfill(3)}'
+        if latest_doc and latest_doc.document_number:
+            try:
+                # '제2023-0101XX호' 형식에서 XX 부분 추출
+                last_seq_str = latest_doc.document_number.replace(today_prefix, '').replace('호', '')
+                last_seq = int(last_seq_str)
+                new_seq = last_seq + 1
+            except (IndexError, ValueError):
+                new_seq = 1
         else:
-            doc.document_number = f'{today}-001'
+            new_seq = 1
+        
+        doc.document_number = f'제{year}-{month_day}{new_seq:02d}호'
         
         # 이력 기록
         history = DocumentHistory(
@@ -407,8 +379,8 @@ def approve_document(id):
         
         db.session.commit()
         
-        # PDF 생성 및 직인 처리
-        generate_pdf_with_seal(doc)
+        # PDF 생성
+        generate_pdf_document(doc)
         
         return jsonify({
             'success': True,
@@ -424,140 +396,48 @@ def approve_document(id):
             'message': '문서 승인 중 오류가 발생했습니다.'
         }), 500
 
-# PDF 생성 및 직인 처리
-def generate_pdf_with_seal(doc):
+def generate_pdf_document(doc):
     try:
-        # PDF 생성 디렉토리 생성
-        pdf_dir = os.path.join(current_app.root_path, 'static', 'pdfs')
+        # PDF 파일 이름 생성
+        filename = f"{doc.document_number}_{get_korea_time().strftime('%Y%m%d_%H%M%S')}.pdf"
+        pdf_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'pdfs')
         os.makedirs(pdf_dir, exist_ok=True)
-        
-        # PDF 파일명 생성 (문서번호_제목_처리일)
-        process_date = doc.process_date.strftime('%Y%m%d') if doc.process_date else datetime.now().strftime('%Y%m%d')
-        safe_title = secure_filename(doc.title[:30])  # 제목은 30자까지만 사용
-        pdf_filename = f'{doc.document_number}_{safe_title}_{process_date}.pdf'
-        pdf_path = os.path.join(pdf_dir, pdf_filename)
-        
-        # 템플릿 데이터 준비
-        template = doc.template
-        template_data = {
-            'document_number': doc.document_number,
-            'title': doc.title,
-            'content': doc.content,
-            'purpose': doc.purpose,
-            'submit_to': doc.submit_to,
-            'form_data': doc.form_data or {},
-            'request_date': doc.request_date.strftime('%Y년 %m월 %d일'),
-            'process_date': doc.process_date.strftime('%Y년 %m월 %d일') if doc.process_date else '',
-            'requester_name': doc.requester.name if doc.requester else '비회원',
-            'processor_name': doc.processor.name if doc.processor else ''
+        pdf_path = os.path.join(pdf_dir, filename)
+
+        # HTML 내용을 직접 사용
+        html_content = doc.content
+
+        # PDF 생성 옵션 설정
+        options = {
+            'page-size': 'A4',
+            'margin-top': '20mm',
+            'margin-right': '20mm',
+            'margin-bottom': '20mm',
+            'margin-left': '20mm',
+            'encoding': 'UTF-8',
+            'no-outline': None,
+            'enable-local-file-access': None,
+            'dpi': 300
         }
         
-        # HTML 컨텐츠 생성
-        if template:
-            html_content = render_template_string(template.content, **template_data)
-        else:
-            html_content = render_template('document/pdf_templates/default.html', **template_data)
+        # PDF 생성
+        pdfkit.from_string(html_content, pdf_path, options=options)
         
-        # 임시 HTML 파일 생성
-        temp_html = os.path.join(current_app.root_path, 'temp', f'temp_{doc.document_number}.html')
-        os.makedirs(os.path.dirname(temp_html), exist_ok=True)
+        # 문서 상태 및 파일 경로 업데이트
+        doc.status = 'COMPLETED'
+        doc.file_path = os.path.join('pdfs', filename)
+        doc.completed_date = get_korea_time()
+        db.session.commit()
         
-        with open(temp_html, 'w', encoding='utf-8') as f:
-            f.write(html_content)
-        
-        try:
-            # PDF 생성 옵션
-            options = {
-                'enable-local-file-access': None,
-                'encoding': 'utf-8',
-                'page-size': 'A4',
-                'margin-top': '0.75in',
-                'margin-right': '0.75in',
-                'margin-bottom': '0.75in',
-                'margin-left': '0.75in',
-                'print-media-type': None,
-                'no-outline': None,
-                'dpi': 300
-            }
-            
-            # wkhtmltopdf 설정
-            config = pdfkit.configuration(wkhtmltopdf=r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe')
-            
-            # PDF 생성
-            pdfkit.from_file(temp_html, pdf_path, options=options, configuration=config)
-            
-            # 직인 이미지 추가
-            add_seal_to_pdf(pdf_path, doc.category)
-            
-            # 문서 상태 및 파일 경로 업데이트
-            doc.status = 'COMPLETED'
-            doc.file_path = os.path.join('pdfs', pdf_filename)
-            db.session.commit()
-            
-            logger.info(f"PDF 생성 성공: {pdf_filename}")
-            
-        except Exception as e:
-            logger.error(f"PDF 생성 중 오류 발생: {str(e)}")
-            raise
-        finally:
-            # 임시 HTML 파일 삭제
-            if os.path.exists(temp_html):
-                os.remove(temp_html)
-                
-    except Exception as e:
-        logger.error(f"PDF 생성 및 직인 처리 중 오류 발생: {str(e)}")
-        raise
+        # 이메일 발송
+        send_document_email(doc)
 
-# 직인 이미지 추가
-def add_seal_to_pdf(pdf_path, category):
-    try:
-        # 직인 이미지 경로
-        seal_path = os.path.join(
-            current_app.root_path,
-            'static',
-            'img',
-            'seals',
-            f'seal_{category.lower()}.png'
-        )
-        
-        if not os.path.exists(seal_path):
-            logger.warning(f"직인 이미지를 찾을 수 없습니다: {seal_path}")
-            return
-        
-        # PDF에 직인 추가
-        reader = PdfReader(pdf_path)
-        writer = PdfWriter()
-        
-        # 마지막 페이지에 직인 추가
-        page = reader.pages[-1]
-        
-        # 직인 이미지 로드 및 추가
-        seal = Image.open(seal_path)
-        seal_width = 100  # 직인 크기 조정
-        seal_height = int(seal.height * seal_width / seal.width)
-        seal = seal.resize((seal_width, seal_height))
-        
-        # 직인 위치 계산 (중앙 하단)
-        page_width = float(page.mediabox.width)
-        page_height = float(page.mediabox.height)
-        x = (page_width - seal_width) / 2  # 중앙 정렬
-        y = 150  # 하단에서 150pt 위
-        
-        # 직인 추가
-        page.merge_transformed_page(
-            seal,
-            [seal_width/page_width, 0, 0, seal_height/page_height, x, y]
-        )
-        
-        writer.add_page(page)
-        
-        # 수정된 PDF 저장
-        with open(pdf_path, 'wb') as output_file:
-            writer.write(output_file)
+        return True, "PDF가 성공적으로 생성되었습니다."
             
     except Exception as e:
-        logger.error(f"직인 추가 중 오류 발생: {str(e)}")
-        raise
+        logger.error(f"PDF 생성 중 오류 발생: {str(e)}")
+        logger.error(traceback.format_exc())
+        return False, f"PDF 생성 중 오류가 발생했습니다: {str(e)}"
 
 # 이메일 발송
 def send_document_email(doc):
@@ -639,6 +519,34 @@ def process_document(id):
         doc.process_date = datetime.now()
         doc.process_comment = comment
         
+        # 승인된 경우 문서 번호 생성
+        if status == 'APPROVED' and not doc.document_number:
+            now = datetime.now()
+            year = now.strftime('%Y')
+            month_day = now.strftime('%m%d')
+            
+            # 오늘 생성된 문서 중 가장 큰 번호 찾기
+            today_prefix = f'제{year}-{month_day}'
+            latest_doc = Document.query.filter(
+                Document.document_number.like(f'{today_prefix}%')
+            ).order_by(db.desc(Document.document_number)).first()
+            
+            if latest_doc and latest_doc.document_number:
+                # 마지막 번호에서 순번 추출하여 1 증가
+                try:
+                    # '제2023-0101XX호' 형식에서 XX 부분 추출
+                    last_seq_str = latest_doc.document_number.replace(today_prefix, '').replace('호', '')
+                    last_seq = int(last_seq_str)
+                    new_seq = last_seq + 1
+                except (IndexError, ValueError):
+                    new_seq = 1
+            else:
+                new_seq = 1
+                
+            # 새 문서 번호 생성 (제YYYY-MMDD순번두자리호 형식)
+            doc.document_number = f'제{year}-{month_day}{new_seq:02d}호'
+            logger.info(f"문서 번호 생성: {doc.document_number}")
+        
         # 이력 기록
         history = DocumentHistory(
             document=doc,
@@ -673,7 +581,7 @@ def template_list():
     """템플릿 목록 페이지"""
     return render_template('document/template_list.html', 
                          categories=DOCUMENT_CATEGORIES,
-                         types=DOCUMENT_TYPES)
+                         document_types=DOCUMENT_TYPES)
 
 # 새 템플릿 페이지
 @document.route('/document/template/create')
@@ -704,7 +612,7 @@ def save_template():
         data = request.get_json()
         
         # 필수 필드 검증
-        required_fields = ['category', 'type', 'name', 'content']
+        required_fields = ['category', 'type', 'name', 'content', 'pdf_template']
         if not all(field in data for field in required_fields):
             return jsonify({
                 'success': False,
@@ -719,6 +627,8 @@ def save_template():
             description=data.get('description'),
             content=data['content'],
             style=data.get('style'),
+            pdf_template=data['pdf_template'],
+            variables=data.get('variables', []),
             created_by=current_user.username
         )
         
@@ -749,7 +659,7 @@ def update_template(id):
         data = request.get_json()
         
         # 필수 필드 검증
-        required_fields = ['category', 'type', 'name', 'content']
+        required_fields = ['category', 'type', 'name', 'content', 'pdf_template']
         if not all(field in data for field in required_fields):
             return jsonify({
                 'success': False,
@@ -763,6 +673,8 @@ def update_template(id):
         template.description = data.get('description')
         template.content = data['content']
         template.style = data.get('style')
+        template.pdf_template = data['pdf_template']
+        template.variables = data.get('variables', [])
         template.updated_by = current_user.username
         
         db.session.commit()
@@ -817,11 +729,6 @@ def delete_template(id):
     try:
         template = DocumentTemplate.query.get_or_404(id)
         
-        # 실제 파일 삭제
-        file_path = os.path.join(current_app.root_path, 'static', template.file_path)
-        if os.path.exists(file_path):
-            os.remove(file_path)
-            
         # 소프트 삭제 (is_active만 False로 변경)
         template.is_active = False
         template.updated_by = current_user.username
@@ -972,41 +879,38 @@ def get_template(category=None, type=None, id=None):
 
 # 문서 미리보기 생성
 @document.route('/document/preview', methods=['POST'])
-def create_preview():
+@login_required
+@admin_required
+def preview_template():
     try:
         data = request.get_json()
-        template_id = data.get('template_id')
-        form_data = data.get('form_data')
-        
-        if not template_id or not form_data:
+        template_name = data.get('template_name')
+        sample_data = data.get('sample_data')
+
+        # 템플릿 파일 읽기
+        template_path = os.path.join(current_app.root_path, 'templates', 'document', 'pdf_templates', f'{template_name}.html')
+        if not os.path.exists(template_path):
             return jsonify({
                 'success': False,
-                'message': '필수 데이터가 누락되었습니다.'
-            }), 400
-            
-        template = DocumentTemplate.query.get_or_404(template_id)
-        
-        # 미리보기 파일 생성 (임시 PDF)
-        preview_dir = os.path.join(current_app.root_path, 'static', 'previews')
-        os.makedirs(preview_dir, exist_ok=True)
-        preview_filename = f'preview_{datetime.now().strftime("%Y%m%d%H%M%S")}_{random.randint(1000, 9999)}.pdf'
-        preview_path = os.path.join(preview_dir, preview_filename)
-        
-        # TODO: 템플릿과 form_data를 사용하여 PDF 생성
-        # 이 부분은 별도의 PDF 생성 유틸리티 함수를 구현해야 함
-        
+                'message': '템플릿을 찾을 수 없습니다.'
+            }), 404
+
+        with open(template_path, 'r', encoding='utf-8') as f:
+            template_content = f.read()
+
+        # Jinja2 템플릿 렌더링
+        template = current_app.jinja_env.from_string(template_content)
+        rendered_html = template.render(**sample_data)
+
         return jsonify({
             'success': True,
-            'data': {
-                'preview_url': url_for('static', filename=f'previews/{preview_filename}')
-            }
+            'html': rendered_html
         })
-        
     except Exception as e:
-        logger.error(f"미리보기 생성 중 오류 발생: {str(e)}")
+        logger.error(f"템플릿 미리보기 생성 중 오류 발생: {str(e)}")
         return jsonify({
             'success': False,
-            'message': '미리보기 생성 중 오류가 발생했습니다.'
+            'message': '미리보기를 생성하는 중 오류가 발생했습니다.'
         }), 500
 
 # 이미지 업로드
@@ -1156,7 +1060,7 @@ def search_templates():
             'message': '템플릿 목록을 불러오는 중 오류가 발생했습니다.'
         }), 500
 
-# 문서 상세 정보 조회
+# 문서 상세 정보 조회 (관리자용)
 @document.route('/document/<int:id>')
 @login_required
 @admin_required
@@ -1169,6 +1073,39 @@ def get_document(id):
         })
     except Exception as e:
         logger.error(f"문서 상세정보 조회 중 오류 발생: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': '문서 정보를 불러오는 중 오류가 발생했습니다.'
+        }), 500
+
+# 사용자 문서 상세 정보 조회 (일반 사용자용)
+@document.route('/document/user/<int:id>')
+def get_user_document(id):
+    try:
+        doc = Document.query.get_or_404(id)
+        
+        # 권한 확인: 로그인한 사용자의 문서이거나 세션의 이메일과 일치하는 문서만 조회 가능
+        if current_user.is_authenticated:
+            if doc.requester_id != current_user.id and not current_user.is_admin:
+                return jsonify({
+                    'success': False,
+                    'message': '해당 문서에 접근할 권한이 없습니다.'
+                }), 403
+        else:
+            # 비로그인 사용자는 세션의 이메일과 일치하는 문서만 조회 가능
+            email = session.get('email')
+            if not email or doc.requester_email != email:
+                return jsonify({
+                    'success': False,
+                    'message': '해당 문서에 접근할 권한이 없습니다.'
+                }), 403
+        
+        return jsonify({
+            'success': True,
+            'data': doc.to_dict()
+        })
+    except Exception as e:
+        logger.error(f"사용자 문서 상세정보 조회 중 오류 발생: {str(e)}")
         return jsonify({
             'success': False,
             'message': '문서 정보를 불러오는 중 오류가 발생했습니다.'
@@ -1188,71 +1125,133 @@ def generate_pdf(id):
                 'message': '승인된 문서만 PDF 생성이 가능합니다.'
             }), 400
 
-        # PDF 파일명 생성 (문서번호_제목_날짜)
-        safe_title = "".join(x for x in doc.title if x.isalnum() or x in (' ', '-', '_'))[:30]
-        filename = f"{doc.document_number}_{safe_title}_{datetime.now().strftime('%Y%m%d')}.pdf"
+        # PDF 파일명 생성 (문서번호.pdf)
+        filename = f"{doc.document_number}.pdf"
         
-        # PDF 저장 디렉토리 생성 (경로 구분자를 / 로 통일)
-        year_month = datetime.now().strftime('%Y%m')
-        relative_dir = f'pdfs/{year_month}'
+        # PDF 저장 디렉토리 생성
+        relative_dir = 'pdfs'
         pdf_dir = os.path.join(current_app.root_path, 'static', relative_dir)
         os.makedirs(pdf_dir, exist_ok=True)
         
-        # 파일 경로 설정 (URL용 상대 경로는 항상 / 사용)
+        # 파일 경로 설정
         file_path = f'{relative_dir}/{filename}'
         absolute_path = os.path.join(current_app.root_path, 'static', relative_dir, filename)
 
-        # 템플릿 데이터 준비
-        template_data = {
-            'document_number': doc.document_number,
-            'title': doc.title,
-            'content': doc.content,
-            'purpose': doc.purpose,
-            'submit_to': doc.submit_to,
-            'request_date': doc.request_date.strftime('%Y년 %m월 %d일'),
-            'process_date': doc.process_date.strftime('%Y년 %m월 %d일') if doc.process_date else '',
-            'requester_name': doc.requester.name if doc.requester else '비회원',
-            'processor_name': doc.processor.name if doc.processor else ''
-        }
-
-        # HTML 템플릿 렌더링
-        html_content = render_template('document/pdf_templates/default.html', **template_data)
-
-        # 임시 HTML 파일 생성
-        temp_dir = os.path.join(current_app.root_path, 'temp')
-        os.makedirs(temp_dir, exist_ok=True)
-        temp_html = os.path.join(temp_dir, f'temp_{doc.document_number}.html')
-
-        with open(temp_html, 'w', encoding='utf-8') as f:
-            f.write(html_content)
-
         try:
-            # wkhtmltopdf 설정
-            options = {
-                'page-size': 'A4',
-                'margin-top': '0.75in',
-                'margin-right': '0.75in',
-                'margin-bottom': '0.75in',
-                'margin-left': '0.75in',
-                'encoding': 'UTF-8',
-                'no-outline': None,
-                'enable-local-file-access': None,
-                'dpi': 300
+            logger.info("PDF 생성 시작")
+            
+            # 템플릿 정보 가져오기
+            template = DocumentTemplate.query.get(doc.template_id)
+            if not template:
+                raise ValueError('템플릿을 찾을 수 없습니다.')
+
+            # 템플릿 파일 읽기
+            template_path = os.path.join(current_app.root_path, 'templates', 'document', 'pdf_templates', f'{template.pdf_template}.html')
+            if not os.path.exists(template_path):
+                raise ValueError('PDF 템플릿 파일을 찾을 수 없습니다.')
+
+            # PDF 데이터 준비
+            template_variables = {}
+            
+            # 템플릿 변수 처리 (리스트 또는 딕셔너리 형태)
+            if template and template.variables:
+                if isinstance(template.variables, list):
+                    logger.info("템플릿 변수가 리스트 형태로 저장되어 있어 딕셔너리로 변환합니다.")
+                    for var in template.variables:
+                        if isinstance(var, dict) and 'name' in var:
+                            template_variables[var['name']] = var.get('value', '')
+                elif isinstance(template.variables, dict):
+                    template_variables = template.variables
+            
+            # 필수 변수 기본값 설정 (없을 경우)
+            if 'recipient' not in template_variables:
+                template_variables['recipient'] = "-"
+            if 'reference' not in template_variables:
+                template_variables['reference'] = "-"
+            if 'title' not in template_variables:
+                template_variables['title'] = doc.title
+
+            # 안전한 URL 경로로 수정
+            host_url = request.host_url.rstrip('/')
+            app_root = current_app.config.get('APPLICATION_ROOT', '')
+            if app_root:
+                base_url = f"{host_url}/{app_root.strip('/')}"
+            else:
+                base_url = host_url
+
+            # 로컬 경로로 템플릿의 리소스 참조 처리
+            static_dir = os.path.join(current_app.root_path, 'static')
+            # 백슬래시를 슬래시로 변환
+            static_dir_path = static_dir.replace('\\', '/')
+
+            pdf_data = {
+                'document_number': doc.document_number,
+                'title': doc.title,
+                'request_date': doc.request_date.strftime('%Y년 %m월 %d일') if doc.request_date else None,
+                'process_date': doc.process_date.strftime('%Y년 %m월 %d일') if doc.process_date else None,
+                'content': doc.content,
+                'purpose': doc.purpose,
+                'submit_to': doc.submit_to,
+                'variables': template_variables,
+                'static_url': "file:///" + static_dir_path + "/"
             }
+            
+            # 템플릿 렌더링
+            with open(template_path, 'r', encoding='utf-8') as f:
+                template_content = f.read()
+                
+            # url_for 함수를 대체하는 사용자 정의 함수
+            def static_url(filename):
+                path = os.path.join(static_dir, filename).replace('\\', '/')
+                return "file:///" + path
+            
+            # 기존 url_for 함수 저장
+            original_url_for = current_app.jinja_env.globals.get('url_for')
+            
+            try:
+                # url_for 함수 대체
+                current_app.jinja_env.globals['url_for'] = lambda endpoint, **kwargs: static_url(kwargs['filename']) if endpoint == 'static' else ''
+                
+                template = current_app.jinja_env.from_string(template_content)
+                rendered_html = template.render(**pdf_data)
+                
+                # PDF 생성 옵션 설정 - A4 용지 규격에 맞게 설정
+                options = {
+                    'encoding': 'UTF-8',
+                    'enable-local-file-access': None,
+                    'allow': [static_dir_path],
+                    'margin-top': '20mm',
+                    'margin-right': '20mm',
+                    'margin-bottom': '20mm',
+                    'margin-left': '20mm',
+                    'page-size': 'A4',
+                    'dpi': '300',
+                    'no-stop-slow-scripts': None,
+                    'debug-javascript': None,
+                    'javascript-delay': '1000',
+                    'load-error-handling': 'ignore',
+                    'zoom': '1.0',
+                    'orientation': 'Portrait',
+                    'print-media-type': None
+                }
+                
+                # PDF 생성
+                config = pdfkit.configuration(wkhtmltopdf=r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe')
+                pdfkit.from_string(rendered_html, absolute_path, options=options, configuration=config)
+                logger.info(f"PDF 파일 생성 완료: {absolute_path}")
+            finally:
+                # 원래의 url_for 함수 복원
+                if original_url_for:
+                    current_app.jinja_env.globals['url_for'] = original_url_for
+                else:
+                    # Flask 기본 url_for로 복원
+                    from flask import url_for as flask_url_for
+                    current_app.jinja_env.globals['url_for'] = flask_url_for
 
-            # PDF 생성
-            config = pdfkit.configuration(wkhtmltopdf=r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe')
-            pdfkit.from_file(temp_html, absolute_path, options=options, configuration=config)
-
-            # 임시 파일 삭제
-            os.remove(temp_html)
-
-            # 문서 상태 업데이트 (파일 경로는 항상 / 사용)
+            # 문서 상태 업데이트
             doc.status = 'COMPLETED'
             doc.file_path = file_path
             db.session.commit()
-
-            current_app.logger.info(f'PDF 생성 완료: {file_path}')
             
             return jsonify({
                 'success': True,
@@ -1261,16 +1260,22 @@ def generate_pdf(id):
             })
 
         except Exception as e:
-            current_app.logger.error(f'PDF 생성 중 오류 발생: {str(e)}')
-            if os.path.exists(temp_html):
-                os.remove(temp_html)
-            raise
+            logger.error(f"PDF 생성 중 오류 발생: {str(e)}")
+            logger.error(traceback.format_exc())
+            return jsonify({
+                'success': False,
+                'message': 'PDF 생성 중 오류가 발생했습니다.',
+                'error': str(e),
+                'error_detail': traceback.format_exc() if current_app.debug else None
+            }), 500
 
     except Exception as e:
-        current_app.logger.error(f'PDF 생성 및 직인 처리 중 오류 발생: {str(e)}')
+        logger.error(f"PDF 생성 중 오류 발생: {str(e)}")
         return jsonify({
             'success': False,
-            'message': 'PDF 생성 중 오류가 발생했습니다.'
+            'message': 'PDF 생성 중 오류가 발생했습니다.',
+            'error': str(e),
+            'error_detail': traceback.format_exc() if current_app.debug else None
         }), 500
 
 @document.route('/document/preview/<int:document_id>')
@@ -1301,4 +1306,44 @@ def preview_pdf(document_id):
     except Exception as e:
         current_app.logger.error(f'PDF 미리보기 중 오류 발생: {str(e)}')
         flash('PDF 미리보기 중 오류가 발생했습니다.', 'error')
-        return redirect(url_for('document.index')) 
+        return redirect(url_for('document.index'))
+
+@document.route('/document/pdf-template/<template_name>')
+@login_required
+@admin_required
+def get_pdf_template(template_name):
+    try:
+        templates = {
+            'default': 'pdf_templates/default.html',
+            'certificate': 'pdf_templates/certificate.html',
+            'official': 'pdf_templates/official.html'
+        }
+        
+        if template_name not in templates:
+            return jsonify({
+                'success': False,
+                'message': '존재하지 않는 템플릿입니다.'
+            }), 404
+            
+        template_path = os.path.join(current_app.root_path, 'templates', 'document', templates[template_name])
+        
+        if not os.path.exists(template_path):
+            return jsonify({
+                'success': False,
+                'message': '템플릿 파일을 찾을 수 없습니다.'
+            }), 404
+            
+        with open(template_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+        return jsonify({
+            'success': True,
+            'content': content
+        })
+        
+    except Exception as e:
+        logger.error(f"PDF 템플릿 로드 중 오류 발생: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'PDF 템플릿을 불러오는 중 오류가 발생했습니다.'
+        }), 500 
